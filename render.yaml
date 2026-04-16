@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: lark-wiki-bot
+    runtime: docker
+    plan: free
+    envVars:
+      - key: LARK_APP_ID
+        sync: false
+      - key: LARK_APP_SECRET
+        sync: false
+      - key: LARK_VERIFICATION_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AGENT_ID
+        sync: false
+      - key: AGENT_VERSION
+        sync: false
