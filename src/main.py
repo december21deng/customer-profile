@@ -56,6 +56,11 @@ async def webhook_event(request: Request):
     message = event.get("message", {})
     sender = event.get("sender", {})
 
+    # Debug log the full event
+    logger.info("Event: chat_type=%s, chat_id=%s, message_id=%s, sender_type=%s",
+                message.get("chat_type"), message.get("chat_id"),
+                message.get("message_id"), sender.get("sender_type"))
+
     # Ignore bot's own messages
     sender_type = sender.get("sender_type", "")
     if sender_type != "user":
@@ -107,12 +112,11 @@ async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_mes
 
 async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str) -> None:
     """Core message processing: call Claude API, send/reply with card."""
-    # p2p: use create message with chat_id
-    # group: use reply to message_id
-    if chat_type == "p2p":
+    # Always use reply — works for both p2p and group
+    card_id = lark_client.reply_card(user_message_id)
+    if not card_id and chat_type == "p2p":
+        # Fallback: try create message for p2p
         card_id = lark_client.send_card_p2p(chat_id)
-    else:
-        card_id = lark_client.reply_card(user_message_id)
 
     if not card_id:
         logger.warning("Card send/reply failed for thread %s", thread_id)
