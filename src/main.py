@@ -64,13 +64,15 @@ async def webhook_event(request: Request):
 
     chat_id = message.get("chat_id", "")
     chat_type = message.get("chat_type", "")
+    message_id_lark = message.get("message_id", "")
     thread_id = message.get("root_id") or message.get("parent_id") or ""
     msg_type = message.get("message_type", "")
 
-    # Only respond in topic groups, only in threads
-    if chat_type != "group":
-        return JSONResponse({"code": 0})
-    if not thread_id:
+    # For p2p (private chat), use chat_id as thread_id
+    if chat_type == "p2p":
+        thread_id = chat_id
+    elif chat_type == "group" and not thread_id:
+        # Group chat without thread — ignore (only respond in threads)
         return JSONResponse({"code": 0})
 
     # Extract text content
