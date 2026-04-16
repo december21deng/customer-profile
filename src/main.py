@@ -88,31 +88,29 @@ async def webhook_event(request: Request):
         return JSONResponse({"code": 0})
 
     # Process asynchronously
-    asyncio.create_task(_handle_message(chat_id, thread_id, user_text))
+    asyncio.create_task(_handle_message(chat_id, thread_id, message_id_lark, user_text))
     return JSONResponse({"code": 0})
 
 
-async def _handle_message(chat_id: str, thread_id: str, user_text: str) -> None:
-    """Handle a single message: route to session, stream response, update card."""
+async def _handle_message(chat_id: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+    """Handle a single message: call Claude, reply with card."""
     # Per-thread lock for serial processing
     if thread_id not in _thread_locks:
         _thread_locks[thread_id] = asyncio.Lock()
 
     async with _thread_locks[thread_id]:
         try:
-            await _process_message(chat_id, thread_id, user_text)
+            await _process_message(chat_id, thread_id, user_message_id, user_text)
         except Exception:
             logger.exception("Error processing message in thread %s", thread_id)
-            lark_client.send_card(chat_id, thread_id, "抱歉，处理消息时出错了，请稍后重试。")
 
 
-async def _process_message(chat_id: str, thread_id: str, user_text: str) -> None:
-    """Core message processing: call Claude API, send card response."""
-    # Send "thinking" card
-    message_id = lark_client.send_card(chat_id, thread_id)
-    if not message_id:
-        # Fallback: try sending as plain text reply
-        logger.warning("Card send failed, skipping response for thread %s", thread_id)
+async def _process_message(chat_id: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+    """Core message processing: call Claude API, reply with card."""
+    # Reply with "thinking" card
+    card_id = lark_client.reply_card(user_message_id)
+    if not card_id:
+        logger.warning("Reply card failed for message %s", user_message_id)
         return
 
     # Get agent response
@@ -120,8 +118,8 @@ async def _process_message(chat_id: str, thread_id: str, user_text: str) -> None
     async for chunk in agent_client.send_and_stream(thread_id, user_text):
         full_text += chunk
 
-    # Final card update
+    # Update card with final response
     if full_text:
-        lark_client.update_card(message_id, full_text)
+        lark_client.update_card(card_id, full_text)
     else:
-        lark_client.update_card(message_id, "Sorry, no response generated.")
+        lark_client.update_card(card_id, "Sorry, no response generated.")

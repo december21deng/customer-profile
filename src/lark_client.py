@@ -7,6 +7,8 @@ import lark_oapi as lark
 from lark_oapi.api.im.v1 import (
     CreateMessageRequest,
     CreateMessageRequestBody,
+    ReplyMessageRequest,
+    ReplyMessageRequestBody,
     PatchMessageRequest,
     PatchMessageRequestBody,
 )
@@ -32,26 +34,25 @@ def _build_card(content: str) -> str:
     return json.dumps(card, ensure_ascii=False)
 
 
-def send_card(chat_id: str, thread_id: str, content: str = "思考中...") -> str | None:
-    """Send a JSON interactive card to a thread. Returns message_id or None on failure."""
-    body = CreateMessageRequestBody.builder() \
-        .receive_id(chat_id) \
+def reply_card(reply_to_message_id: str, content: str = "thinking...") -> str | None:
+    """Reply to a message with a JSON interactive card. Returns message_id or None."""
+    body = ReplyMessageRequestBody.builder() \
         .msg_type("interactive") \
         .content(_build_card(content)) \
         .build()
 
-    request = CreateMessageRequest.builder() \
-        .receive_id_type("chat_id") \
+    request = ReplyMessageRequest.builder() \
+        .message_id(reply_to_message_id) \
         .request_body(body) \
         .build()
 
-    response = _client.im.v1.message.create(request)
+    response = _client.im.v1.message.reply(request)
     if not response.success():
-        logger.error("Failed to send card: %s %s", response.code, response.msg)
+        logger.error("Failed to reply card: %s %s", response.code, response.msg)
         return None
 
     message_id = response.data.message_id
-    logger.info("Sent card %s to thread %s", message_id, thread_id)
+    logger.info("Replied card %s to message %s", message_id, reply_to_message_id)
     return message_id
 
 
