@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from src import config, session_store, agent_client, lark_client, ingest_service
+from src import config, agent_client, lark_client, ingest_service
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -20,8 +20,7 @@ _thread_locks: dict[str, asyncio.Lock] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await session_store.init_db()
-    logger.info("Database initialized")
+    logger.info("Application starting")
     # Start ingest service in background
     ingest_task = asyncio.create_task(ingest_service.run_ingest_loop())
     logger.info("Ingest service started in background")
@@ -108,56 +107,21 @@ async def _handle_message(chat_id: str, thread_id: str, user_text: str) -> None:
 
 
 async def _process_message(chat_id: str, thread_id: str, user_text: str) -> None:
-    """Core message processing: session lookup, agent call, card updates."""
-    # Get or create session
-    session_id = await _ensure_session(thread_id)
-
+    """Core message processing: call Claude API, send card response."""
     # Send "thinking" card
     message_id = lark_client.send_card(chat_id, thread_id)
     if not message_id:
+        # Fallback: try sending as plain text reply
+        logger.warning("Card send failed, skipping response for thread %s", thread_id)
         return
 
-    # Stream agent response and update card periodically
+    # Get agent response
     full_text = ""
-    last_update = time.monotonic()
-    update_interval = 1.5  # seconds
-
-    try:
-        async for chunk in agent_client.send_and_stream(session_id, user_text):
-            full_text += chunk
-            now = time.monotonic()
-            if now - last_update >= update_interval:
-                lark_client.update_card(message_id, full_text + " ▌")
-                last_update = now
-    except agent_client.SessionUnavailableError:
-        logger.warning("Session %s unavailable, recreating for thread %s", session_id, thread_id)
-        await session_store.delete_session(thread_id)
-        session_id = await _ensure_session(thread_id)
-        # Retry once with new session
-        full_text = ""
-        async for chunk in agent_client.send_and_stream(session_id, user_text):
-            full_text += chunk
-            now = time.monotonic()
-            if now - last_update >= update_interval:
-                lark_client.update_card(message_id, full_text + " ▌")
-                last_update = now
+    async for chunk in agent_client.send_and_stream(thread_id, user_text):
+        full_text += chunk
 
     # Final card update
     if full_text:
         lark_client.update_card(message_id, full_text)
     else:
-        lark_client.update_card(message_id, "（Agent 未返回内容）")
-
-
-async def _ensure_session(thread_id: str) -> str:
-    """Get existing session or create new one for the thread."""
-    existing = await session_store.get_session(thread_id)
-    if existing:
-        return existing[0]  # session_id
-
-    # Create new environment + session, init wiki files
-    env_id = agent_client.create_environment(f"thread-{thread_id}")
-    session_id = agent_client.create_session(env_id)
-    agent_client.init_wiki_in_environment(session_id)
-    await session_store.save_session(thread_id, session_id, env_id)
-    return session_id
+        lark_client.update_card(message_id, "Sorry, no response generated.")

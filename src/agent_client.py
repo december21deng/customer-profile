@@ -1,4 +1,4 @@
-"""Managed Agents API wrapper: environment, session, streaming, wiki init."""
+"""Claude API wrapper: simple messages API for v1, Managed Agents for later."""
 
 import asyncio
 import logging
@@ -7,133 +7,84 @@ from collections.abc import AsyncGenerator
 
 from anthropic import Anthropic, APIError, RateLimitError
 
-from src.config import ANTHROPIC_API_KEY, AGENT_ID, AGENT_VERSION
+from src.config import ANTHROPIC_API_KEY
 
 logger = logging.getLogger(__name__)
 
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# Local wiki directory to sync to Environment on first session creation
+# Load wiki files as system context
 WIKI_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "wiki")
-RAW_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "raw")
+
+# In-memory conversation history per thread (simple v1)
+_conversations: dict[str, list[dict]] = {}
 
 
 class SessionUnavailableError(Exception):
-    """Raised when a session is no longer usable (archived, not found, etc.)."""
+    """Raised when a session is no longer usable."""
 
 
-def create_environment(name: str) -> str:
-    """Create a cloud environment. Returns environment_id."""
-    env = client.beta.environments.create(
-        name=name,
-        config={"type": "cloud", "networking": {"type": "unrestricted"}},
-    )
-    logger.info("Created environment %s", env.id)
-    return env.id
+def _load_wiki_context() -> str:
+    """Load all wiki files into a single context string."""
+    parts = []
+    if os.path.isdir(WIKI_DIR):
+        for root, _, filenames in os.walk(WIKI_DIR):
+            for fname in sorted(filenames):
+                if fname.endswith(".md"):
+                    fpath = os.path.join(root, fname)
+                    with open(fpath, "r") as f:
+                        content = f.read()
+                    if content.strip():
+                        relpath = os.path.relpath(fpath, WIKI_DIR)
+                        parts.append(f"## {relpath}\n{content}")
+    return "\n\n---\n\n".join(parts) if parts else ""
 
 
-def create_session(environment_id: str) -> str:
-    """Create a session bound to an agent and environment. Returns session_id."""
-    session = client.beta.sessions.create(
-        agent={"type": "agent", "id": AGENT_ID, "version": AGENT_VERSION},
-        environment_id=environment_id,
-    )
-    logger.info("Created session %s", session.id)
-    return session.id
+_wiki_context = _load_wiki_context()
+
+SYSTEM_PROMPT = f"""You are a helpful assistant. You have access to a knowledge base (wiki) built from meeting transcripts and documents. Use this knowledge to answer questions when relevant.
+
+{f'''Here is the knowledge base:
+
+{_wiki_context}''' if _wiki_context else 'No knowledge base loaded yet.'}
+
+Respond in the same language as the user's message. Be concise and helpful."""
 
 
-def init_wiki_in_environment(session_id: str) -> None:
-    """Upload local wiki and raw files into the Environment via agent commands.
+async def send_and_stream(thread_id: str, message: str) -> AsyncGenerator[str, None]:
+    """Send a user message and yield the full response text.
 
-    Sends a message asking the agent to create the wiki structure,
-    then feeds it the content of each file.
+    Uses simple Messages API with in-memory conversation history.
     """
-    files_content = []
+    # Get or init conversation history
+    if thread_id not in _conversations:
+        _conversations[thread_id] = []
 
-    # Collect wiki files
-    for root, _, filenames in os.walk(WIKI_DIR):
-        for fname in filenames:
-            fpath = os.path.join(root, fname)
-            relpath = os.path.relpath(fpath, os.path.dirname(WIKI_DIR))
-            with open(fpath, "r") as f:
-                content = f.read()
-            if content.strip():
-                files_content.append((relpath, content))
+    history = _conversations[thread_id]
+    history.append({"role": "user", "content": message})
 
-    # Collect raw files
-    for root, _, filenames in os.walk(RAW_DIR):
-        for fname in filenames:
-            fpath = os.path.join(root, fname)
-            relpath = os.path.relpath(fpath, os.path.dirname(RAW_DIR))
-            with open(fpath, "r") as f:
-                content = f.read()
-            if content.strip():
-                files_content.append((relpath, content))
+    # Keep last 20 messages to avoid context overflow
+    if len(history) > 20:
+        history = history[-20:]
+        _conversations[thread_id] = history
 
-    if not files_content:
-        logger.info("No wiki/raw files to upload")
-        return
-
-    # Build a single message with all files for the agent to write
-    parts = ["请在 Environment 中创建以下文件结构。用工具把每个文件写到对应路径：\n"]
-    for relpath, content in files_content:
-        parts.append(f"--- FILE: {relpath} ---\n{content}\n--- END FILE ---\n")
-
-    message = "\n".join(parts)
-
-    logger.info("Uploading %d files to Environment via agent", len(files_content))
-    with client.beta.sessions.stream(session_id=session_id) as stream:
-        client.beta.sessions.events.send(
-            session_id=session_id,
-            events=[{
-                "type": "user.message",
-                "content": [{"type": "text", "text": message}],
-            }],
+    def _call_api():
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=history,
         )
-        for event in stream:
-            if event.type == "session.status_idle":
-                break
-
-    logger.info("Wiki files uploaded to Environment")
-
-
-async def send_and_stream(session_id: str, message: str) -> AsyncGenerator[str, None]:
-    """Send a user message and yield text chunks from the agent response.
-
-    Runs the synchronous streaming SDK call in a thread to avoid blocking the event loop.
-    Raises SessionUnavailableError if the session is gone.
-    """
-    def _stream():
-        chunks: list[str] = []
-        try:
-            with client.beta.sessions.stream(session_id=session_id) as stream:
-                client.beta.sessions.events.send(
-                    session_id=session_id,
-                    events=[{
-                        "type": "user.message",
-                        "content": [{"type": "text", "text": message}],
-                    }],
-                )
-                for event in stream:
-                    if event.type == "agent.message":
-                        for block in event.content:
-                            if block.type == "text":
-                                chunks.append(block.text)
-                    elif event.type == "session.status_idle":
-                        break
-        except APIError as e:
-            if e.status_code in (404, 409):
-                raise SessionUnavailableError(f"Session {session_id} unavailable: {e}")
-            raise
-        return chunks
+        return response.content[0].text
 
     retries = 0
     while True:
         try:
             loop = asyncio.get_event_loop()
-            chunks = await loop.run_in_executor(None, _stream)
-            for chunk in chunks:
-                yield chunk
+            text = await loop.run_in_executor(None, _call_api)
+            # Save assistant response to history
+            history.append({"role": "assistant", "content": text})
+            yield text
             return
         except RateLimitError:
             retries += 1
