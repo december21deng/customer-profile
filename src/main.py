@@ -88,11 +88,11 @@ async def webhook_event(request: Request):
         return JSONResponse({"code": 0})
 
     # Process asynchronously
-    asyncio.create_task(_handle_message(chat_id, thread_id, message_id_lark, user_text))
+    asyncio.create_task(_handle_message(chat_id, chat_type, thread_id, message_id_lark, user_text))
     return JSONResponse({"code": 0})
 
 
-async def _handle_message(chat_id: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str) -> None:
     """Handle a single message: call Claude, reply with card."""
     # Per-thread lock for serial processing
     if thread_id not in _thread_locks:
@@ -100,17 +100,22 @@ async def _handle_message(chat_id: str, thread_id: str, user_message_id: str, us
 
     async with _thread_locks[thread_id]:
         try:
-            await _process_message(chat_id, thread_id, user_message_id, user_text)
+            await _process_message(chat_id, chat_type, thread_id, user_message_id, user_text)
         except Exception:
             logger.exception("Error processing message in thread %s", thread_id)
 
 
-async def _process_message(chat_id: str, thread_id: str, user_message_id: str, user_text: str) -> None:
-    """Core message processing: call Claude API, reply with card."""
-    # Reply with "thinking" card
-    card_id = lark_client.reply_card(user_message_id)
+async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+    """Core message processing: call Claude API, send/reply with card."""
+    # p2p: use create message with chat_id
+    # group: use reply to message_id
+    if chat_type == "p2p":
+        card_id = lark_client.send_card_p2p(chat_id)
+    else:
+        card_id = lark_client.reply_card(user_message_id)
+
     if not card_id:
-        logger.warning("Reply card failed for message %s", user_message_id)
+        logger.warning("Card send/reply failed for thread %s", thread_id)
         return
 
     # Get agent response

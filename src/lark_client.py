@@ -34,8 +34,31 @@ def _build_card(content: str) -> str:
     return json.dumps(card, ensure_ascii=False)
 
 
+def send_card_p2p(chat_id: str, content: str = "thinking...") -> str | None:
+    """Send a card in p2p (private) chat using chat_id. Returns message_id."""
+    body = CreateMessageRequestBody.builder() \
+        .receive_id(chat_id) \
+        .msg_type("interactive") \
+        .content(_build_card(content)) \
+        .build()
+
+    request = CreateMessageRequest.builder() \
+        .receive_id_type("chat_id") \
+        .request_body(body) \
+        .build()
+
+    response = _client.im.v1.message.create(request)
+    if not response.success():
+        logger.error("Failed to send p2p card: %s %s", response.code, response.msg)
+        return None
+
+    message_id = response.data.message_id
+    logger.info("Sent p2p card %s", message_id)
+    return message_id
+
+
 def reply_card(reply_to_message_id: str, content: str = "thinking...") -> str | None:
-    """Reply to a message with a JSON interactive card. Returns message_id or None."""
+    """Reply to a message with a card (for group chats). Returns message_id."""
     body = ReplyMessageRequestBody.builder() \
         .msg_type("interactive") \
         .content(_build_card(content)) \
