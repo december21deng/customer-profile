@@ -116,12 +116,8 @@ async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_mes
 
 async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str, open_id: str = "") -> None:
     """Core message processing: call Claude API, send/reply with card."""
-    if chat_type == "p2p" and open_id:
-        # P2P: send using open_id (not chat_id)
-        card_id = lark_client.send_card_p2p(open_id, receive_id_type="open_id")
-    else:
-        # Group: reply to message
-        card_id = lark_client.reply_card(user_message_id)
+    # Always reply to the user's message (works for both p2p and group)
+    card_id = lark_client.reply_card(user_message_id)
 
     if not card_id:
         logger.warning("Card send/reply failed for thread %s", thread_id)
