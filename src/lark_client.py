@@ -34,16 +34,16 @@ def _build_card(content: str) -> str:
     return json.dumps(card, ensure_ascii=False)
 
 
-def send_card_p2p(chat_id: str, content: str = "thinking...") -> str | None:
-    """Send a card in p2p (private) chat using chat_id. Returns message_id."""
+def send_card_p2p(receive_id: str, content: str = "thinking...", receive_id_type: str = "open_id") -> str | None:
+    """Send a card in p2p (private) chat. Returns message_id."""
     body = CreateMessageRequestBody.builder() \
-        .receive_id(chat_id) \
+        .receive_id(receive_id) \
         .msg_type("interactive") \
         .content(_build_card(content)) \
         .build()
 
     request = CreateMessageRequest.builder() \
-        .receive_id_type("chat_id") \
+        .receive_id_type(receive_id_type) \
         .request_body(body) \
         .build()
 

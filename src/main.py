@@ -56,10 +56,14 @@ async def webhook_event(request: Request):
     message = event.get("message", {})
     sender = event.get("sender", {})
 
+    # Extract sender open_id for p2p messaging
+    sender_id = sender.get("sender_id", {})
+    open_id = sender_id.get("open_id", "")
+
     # Debug log the full event
-    logger.info("Event: chat_type=%s, chat_id=%s, message_id=%s, sender_type=%s",
+    logger.info("Event: chat_type=%s, chat_id=%s, message_id=%s, sender_type=%s, open_id=%s",
                 message.get("chat_type"), message.get("chat_id"),
-                message.get("message_id"), sender.get("sender_type"))
+                message.get("message_id"), sender.get("sender_type"), open_id)
 
     # Ignore bot's own messages
     sender_type = sender.get("sender_type", "")
@@ -93,11 +97,11 @@ async def webhook_event(request: Request):
         return JSONResponse({"code": 0})
 
     # Process asynchronously
-    asyncio.create_task(_handle_message(chat_id, chat_type, thread_id, message_id_lark, user_text))
+    asyncio.create_task(_handle_message(chat_id, chat_type, thread_id, message_id_lark, user_text, open_id))
     return JSONResponse({"code": 0})
 
 
-async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str, open_id: str = "") -> None:
     """Handle a single message: call Claude, reply with card."""
     # Per-thread lock for serial processing
     if thread_id not in _thread_locks:
@@ -105,18 +109,19 @@ async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_mes
 
     async with _thread_locks[thread_id]:
         try:
-            await _process_message(chat_id, chat_type, thread_id, user_message_id, user_text)
+            await _process_message(chat_id, chat_type, thread_id, user_message_id, user_text, open_id)
         except Exception:
             logger.exception("Error processing message in thread %s", thread_id)
 
 
-async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str) -> None:
+async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str, open_id: str = "") -> None:
     """Core message processing: call Claude API, send/reply with card."""
-    # Always use reply — works for both p2p and group
-    card_id = lark_client.reply_card(user_message_id)
-    if not card_id and chat_type == "p2p":
-        # Fallback: try create message for p2p
-        card_id = lark_client.send_card_p2p(chat_id)
+    if chat_type == "p2p" and open_id:
+        # P2P: send using open_id (not chat_id)
+        card_id = lark_client.send_card_p2p(open_id, receive_id_type="open_id")
+    else:
+        # Group: reply to message
+        card_id = lark_client.reply_card(user_message_id)
 
     if not card_id:
         logger.warning("Card send/reply failed for thread %s", thread_id)
