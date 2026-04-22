@@ -1,0 +1,39 @@
+# Fly.io 配置
+# 部署：flyctl deploy
+# 读日志：flyctl logs
+# SSH 进机器：flyctl ssh console
+
+app = "customer-profile-dec"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  APP_DB_PATH = "/data/app.sqlite"
+  CRM_SYNC_INTERVAL = "900"   # 秒；15 分钟一轮同步
+  TZ = "Asia/Shanghai"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false        # scheduler 常驻，不能让 fly 休眠
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/healthz"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,0 +1,43 @@
+# VCS
+.git
+.gitignore
+.github
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Local SQLite（Fly 用 /data volume，绝对别把本地库烤进镜像）
+*.db
+*.sqlite
+*.sqlite-*
+db/*.sqlite
+db/*.sqlite-*
+sessions.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs / scratch
+docs/
+raw/
+download.txt
+test_*.py
+test_ingest.py
+render.yaml
+
+# 保留 Dockerfile.fly 自己，排除旧的（避免混淆）
+# Dockerfile  ← 旧的 Bot-only，留着也没关系，Fly 只用 Dockerfile.fly

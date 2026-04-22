@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from src.db.connection import connect
+from src.web.auth import AuthMiddleware, router as auth_router
 
 PAGE_SIZE = 30
 Tab = Literal["customers", "records"]
@@ -34,6 +35,8 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 app = FastAPI(title="客户助手")
+app.add_middleware(AuthMiddleware)
+app.include_router(auth_router)
 
 
 # ---- cursor 编解码 -------------------------------------------------
