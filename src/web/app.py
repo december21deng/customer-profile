@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -27,6 +28,8 @@ from fastapi.templating import Jinja2Templates
 
 from src.db.connection import connect
 from src.web.auth import AuthMiddleware, router as auth_router
+
+DetailTab = Literal["info", "followup"]
 
 PAGE_SIZE = 30
 Tab = Literal["customers", "records"]
@@ -193,8 +196,62 @@ def customer_list_partial(
     })
 
 
+def _parse_ts(ts: str) -> datetime | None:
+    """crm_* 时间字段大多是 'YYYY-MM-DD HH:MM:SS'，也兼容 ISO。"""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        pass
+    try:
+        return datetime.strptime(ts[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def _relative_time(ts: str | None) -> str:
+    dt = _parse_ts(ts) if ts else None
+    if dt is None:
+        return "—"
+    # 去掉 tz 方便和 now 相减
+    if dt.tzinfo is not None:
+        dt = dt.replace(tzinfo=None)
+    sec = int((datetime.now() - dt).total_seconds())
+    if sec < 0:
+        return ts[:10]
+    if sec < 60:
+        return "刚刚"
+    if sec < 3600:
+        return f"{sec // 60} 分钟前"
+    if sec < 86400:
+        return f"{sec // 3600} 小时前"
+    if sec < 86400 * 30:
+        return f"{sec // 86400} 天前"
+    if sec < 86400 * 365:
+        return f"{sec // (86400 * 30)} 个月前"
+    return f"{sec // (86400 * 365)} 年前"
+
+
+def _format_amount(v) -> str | None:
+    """累计订单额：为 0 / NULL / 非数字 → None（模板里显示 —）。"""
+    if v in (None, "", 0, "0"):
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return None
+    return f"¥{n:,.0f}"
+
+
 @app.get("/customers/{customer_id}", response_class=HTMLResponse)
-def customer_detail(request: Request, customer_id: str):
+def customer_detail(
+    request: Request,
+    customer_id: str,
+    tab: DetailTab = Query("info"),
+):
     conn = connect()
     try:
         row = conn.execute(
@@ -218,7 +275,14 @@ def customer_detail(request: Request, customer_id: str):
             status_code=404,
         )
 
+    c = dict(row)
     return templates.TemplateResponse(
         "customer_detail.html",
-        {"request": request, "c": dict(row)},
+        {
+            "request": request,
+            "c": c,
+            "tab": tab,
+            "recent_at_display": _relative_time(c.get("crm_recent_activity_at")),
+            "order_amount_display": _format_amount(c.get("crm_total_order_amount")),
+        },
     )

@@ -4,43 +4,112 @@
 <a href="/customers" class="detail-back">返回</a>
 
 <h1 class="detail-title">{{ c.name }}</h1>
-<div class="detail-sub">
-  {% set parts = [] %}
-  {% if c.crm_sale_stage_id %}{% set _ = parts.append(c.crm_sale_stage_id) %}{% endif %}
-  {% if c.industry %}{% set _ = parts.append(c.industry) %}{% endif %}
-  {% if c.crm_state %}{% set _ = parts.append(c.crm_state) %}{% endif %}
-  {{ parts | join(' · ') }}
+
+<div class="tag-chips">
+  {% if c.crm_is_customer %}
+    <span class="chip chip-customer">客户</span>
+  {% else %}
+    <span class="chip chip-lead">潜客</span>
+  {% endif %}
+  {% if c.crm_state %}<span class="chip">{{ c.crm_state }}</span>{% endif %}
+  {% if c.industry %}<span class="chip">{{ c.industry }}</span>{% endif %}
+  {% if c.crm_level %}
+    {% set lvl = c.crm_level|string|upper %}
+    {% if 'A' in lvl %}
+      <span class="chip chip-level-high">{{ c.crm_level }} 级</span>
+    {% elif 'C' in lvl or 'D' in lvl %}
+      <span class="chip chip-level-low">{{ c.crm_level }} 级</span>
+    {% else %}
+      <span class="chip">{{ c.crm_level }} 级</span>
+    {% endif %}
+  {% endif %}
 </div>
 
-<section class="section">
-  <h3>基础信息</h3>
-  <div class="kv"><span class="k">负责人</span><span class="v">{{ c.owner_name or '企业公共客户池' }}</span></div>
-  <div class="kv"><span class="k">部门</span><span class="v">{{ c.crm_dim_depart or '—' }}</span></div>
-  <div class="kv"><span class="k">客户等级</span><span class="v">{{ c.crm_level or '—' }}</span></div>
-  <div class="kv"><span class="k">客户评分</span><span class="v">{{ c.crm_account_score or '—' }}</span></div>
-  {% if c.crm_shared_tags %}
-  <div class="kv"><span class="k">标签</span><span class="v">{{ c.crm_shared_tags }}</span></div>
-  {% endif %}
-</section>
+<nav class="tabs detail-tabs">
+  <a href="/customers/{{ c.id }}?tab=info"
+     class="{% if tab == 'info' %}active{% endif %}">信息</a>
+  <a href="/customers/{{ c.id }}?tab=followup"
+     class="{% if tab == 'followup' %}active{% endif %}">跟进</a>
+</nav>
 
-<section class="section">
-  <h3>时间线</h3>
-  <div class="kv"><span class="k">最近活动</span><span class="v">{{ (c.crm_recent_activity_at or '—')[:19] }}</span></div>
-  <div class="kv"><span class="k">创建</span><span class="v">{{ (c.crm_created_at or '—')[:10] }}</span></div>
-  <div class="kv"><span class="k">更新</span><span class="v">{{ (c.crm_updated_at or '—')[:19] }}</span></div>
-</section>
-
-<section class="section">
-  <h3>AI 摘要</h3>
-  <div style="font-size:14px;color:var(--ink-soft);line-height:1.7">
-    {{ c.summary or '（暂无摘要，Agent 会在首次对话时生成）' }}
+{% if tab == 'info' %}
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">累计订单</div>
+      {% if order_amount_display %}
+        <div class="stat-value">{{ order_amount_display }}</div>
+      {% else %}
+        <div class="stat-value empty">—</div>
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">客户评分</div>
+      {% if c.crm_account_score not in (None, '', 0, '0') %}
+        <div class="stat-value">{{ c.crm_account_score }}</div>
+      {% else %}
+        <div class="stat-value empty">—</div>
+      {% endif %}
+    </div>
   </div>
-</section>
 
-{% if c.wiki_path %}
-<section class="section">
-  <h3>Wiki</h3>
-  <div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)">{{ c.wiki_path }}</div>
-</section>
+  <section class="section">
+    <h3>客户所有人</h3>
+    <div class="owner-name">{{ c.owner_name or '企业公共客户池' }}</div>
+    <div class="kv">
+      <span class="k">客户阶段</span>
+      <span class="v {% if not c.crm_sale_stage_id %}muted{% endif %}">—</span>
+    </div>
+    <div class="kv">
+      <span class="k">最近活动</span>
+      <span class="v">{{ recent_at_display }}</span>
+    </div>
+    <div class="kv">
+      <span class="k">建档时间</span>
+      <span class="v">{{ (c.crm_created_at or '—')[:10] }}</span>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>客户概况</h3>
+    {% if c.summary %}
+      <div class="section-body">{{ c.summary }}</div>
+    {% else %}
+      <div class="section-hint">暂无概况，wiki 补充后显示</div>
+    {% endif %}
+  </section>
+{% else %}
+  <div class="followup-empty">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="9" y1="14" x2="15" y2="14"/>
+      <line x1="9" y1="18" x2="13" y2="18"/>
+    </svg>
+    <div class="title">还没有跟进记录</div>
+    <div class="hint">点击右下角 + 按钮记录一次跟进</div>
+  </div>
 {% endif %}
+
+<button type="button" class="fab" onclick="showToast()" aria-label="新增跟进">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.5" stroke-linecap="round">
+    <path d="M12 5v14M5 12h14"/>
+  </svg>
+</button>
+
+<div id="toast" class="toast">跟进记录功能开发中</div>
+
+<script>
+  (function() {
+    var timer;
+    window.showToast = function(msg) {
+      var t = document.getElementById('toast');
+      if (msg) t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(timer);
+      timer = setTimeout(function() { t.classList.remove('show'); }, 1500);
+    };
+  })();
+</script>
 {% endblock %}
