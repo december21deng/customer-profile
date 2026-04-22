@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}客户助手{% endblock %}
+{% block body %}
+<header class="header">
+  <h1>客户助手</h1>
+</header>
+
+<form class="search" method="get" action="/customers"
+      hx-get="/_p/customer-list"
+      hx-trigger="input changed delay:300ms from:input, search from:input"
+      hx-target="#list"
+      hx-swap="innerHTML"
+      hx-include="[name='tab']">
+  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+  </svg>
+  <input type="search" name="q" value="{{ q }}"
+         placeholder="{% if tab == 'records' %}搜索记录内容 / 标题 / 客户名{% else %}搜索客户名 / 行业{% endif %}"
+         autocomplete="off" />
+  <input type="hidden" name="tab" value="{{ tab }}" />
+  {% if owner %}<input type="hidden" name="owner" value="{{ owner }}" />{% endif %}
+</form>
+
+<nav class="tabs">
+  <a href="/customers?tab=customers{% if q %}&q={{ q|urlencode }}{% endif %}"
+     class="{% if tab == 'customers' %}active{% endif %}">客户</a>
+  <a href="/customers?tab=records{% if q %}&q={{ q|urlencode }}{% endif %}"
+     class="{% if tab == 'records' %}active{% endif %}">跟进记录</a>
+</nav>
+
+<div id="list" class="list">
+  {% include "_rows.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} · 客户助手{% endblock %}
+{% block body %}
+<a href="/customers" class="detail-back">返回</a>
+
+<h1 class="detail-title">{{ c.name }}</h1>
+<div class="detail-sub">
+  {% set parts = [] %}
+  {% if c.crm_sale_stage_id %}{% set _ = parts.append(c.crm_sale_stage_id) %}{% endif %}
+  {% if c.industry %}{% set _ = parts.append(c.industry) %}{% endif %}
+  {% if c.crm_state %}{% set _ = parts.append(c.crm_state) %}{% endif %}
+  {{ parts | join(' · ') }}
+</div>
+
+<section class="section">
+  <h3>基础信息</h3>
+  <div class="kv"><span class="k">负责人</span><span class="v">{{ c.owner_name or '企业公共客户池' }}</span></div>
+  <div class="kv"><span class="k">部门</span><span class="v">{{ c.crm_dim_depart or '—' }}</span></div>
+  <div class="kv"><span class="k">客户等级</span><span class="v">{{ c.crm_level or '—' }}</span></div>
+  <div class="kv"><span class="k">客户评分</span><span class="v">{{ c.crm_account_score or '—' }}</span></div>
+  {% if c.crm_shared_tags %}
+  <div class="kv"><span class="k">标签</span><span class="v">{{ c.crm_shared_tags }}</span></div>
+  {% endif %}
+</section>
+
+<section class="section">
+  <h3>时间线</h3>
+  <div class="kv"><span class="k">最近活动</span><span class="v">{{ (c.crm_recent_activity_at or '—')[:19] }}</span></div>
+  <div class="kv"><span class="k">创建</span><span class="v">{{ (c.crm_created_at or '—')[:10] }}</span></div>
+  <div class="kv"><span class="k">更新</span><span class="v">{{ (c.crm_updated_at or '—')[:19] }}</span></div>
+</section>
+
+<section class="section">
+  <h3>AI 摘要</h3>
+  <div style="font-size:14px;color:var(--ink-soft);line-height:1.7">
+    {{ c.summary or '（暂无摘要，Agent 会在首次对话时生成）' }}
+  </div>
+</section>
+
+{% if c.wiki_path %}
+<section class="section">
+  <h3>Wiki</h3>
+  <div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)">{{ c.wiki_path }}</div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,84 @@
+{#
+  片段：一页卡片 + sentinel / terminal / empty。
+  对齐设计文档 §3.4（卡片）、§3.7（+ 按钮）、§6（空态）、§10（无限滚动）。
+#}
+{% if tab == 'records' %}
+  <div class="empty">
+    <div class="title">暂无跟进记录</div>
+    <div class="hint">记录接入后将在此显示</div>
+  </div>
+{% elif not rows %}
+  <div class="empty">
+    {% if q %}
+      <div class="title">未找到 "{{ q }}"</div>
+      <div class="hint">请确认名称或去 CRM 查询</div>
+    {% else %}
+      <div class="title">暂无客户</div>
+      <div class="hint">请确认 CRM 已同步数据</div>
+    {% endif %}
+  </div>
+{% else %}
+  {# owner 头像配色（Lark 柔和色系，饱和度 -15%） #}
+  {% set palette = ['#4C7FE0','#4DA99C','#D69B2B','#D95A5A','#8B6BB8','#2E9A9A','#D88BAE','#6B7A85'] %}
+  {% for r in rows %}
+    <a class="card" href="/customers/{{ r.id }}">
+      <button class="plus-btn" type="button" aria-label="添加跟进记录"
+              onclick="event.preventDefault(); event.stopPropagation(); location.href='/customers/{{ r.id }}?action=add-record'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+
+      <div class="name">{{ r.name }}</div>
+
+      {# stage 为 NULL 不展示；有值时走 stage-* 配色。行业/客户状态作为其他 tag 跟在后面。 #}
+      {% set ns = namespace(sep=false) %}
+      {% if r.stage_id or r.industry or r.state %}
+      <div class="tag-row">
+        {% if r.stage_id %}
+          <span class="stage stage-active">{{ r.stage_id }}</span>
+          {% set ns.sep = true %}
+        {% endif %}
+        {% if r.industry %}
+          {% if ns.sep %}<span class="sep">·</span>{% endif %}{{ r.industry }}
+          {% set ns.sep = true %}
+        {% endif %}
+        {% if r.state %}
+          {% if ns.sep %}<span class="sep">·</span>{% endif %}{{ r.state }}
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="fields">
+        <div class="field">
+          <span class="label">近 30 天跟进</span>
+          <span class="value">
+            {% if r.recent_count %}{{ r.recent_count }} 次{% else %}<span class="muted">暂无</span>{% endif %}
+          </span>
+        </div>
+        <div class="field">
+          <span class="label">客户所有人</span>
+          <span class="value">
+            {% if r.owner_name %}
+              {% set ch = r.owner_name[:1] %}
+              {% set color = palette[ (r.owner_id|string|length) % 8 ] %}
+              <span class="avatar" style="background: {{ color }}">{{ ch }}</span>{{ r.owner_name }}
+            {% else %}
+              <span class="pool-pill">企业公共客户池</span>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+    </a>
+  {% endfor %}
+
+  {% if next_cursor %}
+    <div class="sentinel"
+         hx-get="/_p/customer-list?tab={{ tab }}&cursor={{ next_cursor|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if owner %}&owner={{ owner|urlencode }}{% endif %}"
+         hx-trigger="revealed"
+         hx-swap="outerHTML"></div>
+  {% else %}
+    <div class="terminal"></div>
+  {% endif %}
+{% endif %}

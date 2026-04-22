@@ -6,3 +6,9 @@ __pycache__/
 download.txt
 .trae/
 .claude/settings.local.json
+
+# SQLite (Fly 用 /data volume；本地库不提交)
+*.sqlite
+*.sqlite-*
+db/*.sqlite
+db/*.sqlite-*

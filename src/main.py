@@ -1,15 +1,14 @@
-"""FastAPI entry point: receives Lark webhook events and orchestrates agent responses."""
+"""Long-connection (WebSocket) entry point: connects to Lark and handles messages."""
 
 import asyncio
 import json
 import logging
-import time
-from contextlib import asynccontextmanager
+import threading
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+import lark_oapi as lark
+from lark_oapi.api.im.v1 import P2ImMessageReceiveV1
 
-from src import config, agent_client, lark_client, ingest_service
+from src import config, agent_client, lark_client, session_store, docx_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -17,119 +16,167 @@ logger = logging.getLogger(__name__)
 # Per-thread locks for serial message processing
 _thread_locks: dict[str, asyncio.Lock] = {}
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Application starting")
-    # Start ingest service in background
-    ingest_task = asyncio.create_task(ingest_service.run_ingest_loop())
-    logger.info("Ingest service started in background")
-    yield
-    ingest_task.cancel()
+# Dedicated asyncio loop running in a background thread (lark ws client is sync)
+_loop: asyncio.AbstractEventLoop | None = None
 
 
-app = FastAPI(lifespan=lifespan)
+def _start_background_loop() -> asyncio.AbstractEventLoop:
+    loop = asyncio.new_event_loop()
+
+    def _run() -> None:
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return loop
 
 
-@app.post("/webhook/event")
-async def webhook_event(request: Request):
-    body = await request.json()
+def on_message(data: P2ImMessageReceiveV1) -> None:
+    """Callback invoked by lark ws client in its own thread."""
+    logger.info("on_message CALLED with data=%s", data)
+    event = data.event
+    message = event.message
+    sender = event.sender
 
-    # Challenge verification (first-time callback URL setup)
-    if "challenge" in body:
-        return JSONResponse({"challenge": body["challenge"]})
+    open_id = sender.sender_id.open_id if sender and sender.sender_id else ""
 
-    # Verify token (skip if not configured yet)
-    if config.LARK_VERIFICATION_TOKEN:
-        token = body.get("token")
-        if token != config.LARK_VERIFICATION_TOKEN:
-            logger.warning("Invalid verification token")
-            return JSONResponse({"code": 403}, status_code=403)
+    logger.info(
+        "Event: chat_type=%s chat_id=%s message_id=%s sender_type=%s open_id=%s",
+        message.chat_type, message.chat_id, message.message_id,
+        sender.sender_type if sender else None, open_id,
+    )
 
-    # Extract event
-    header = body.get("header", {})
-    event_type = header.get("event_type", "")
-    if event_type != "im.message.receive_v1":
-        return JSONResponse({"code": 0})
+    if not sender or sender.sender_type != "user":
+        return
 
-    event = body.get("event", {})
-    message = event.get("message", {})
-    sender = event.get("sender", {})
+    chat_type = message.chat_type or ""
+    message_id = message.message_id or ""
+    chat_id = message.chat_id or ""
 
-    # Extract sender open_id for p2p messaging
-    sender_id = sender.get("sender_id", {})
-    open_id = sender_id.get("open_id", "")
+    # v0.1: only handle p2p (private chat)
+    if chat_type != "p2p":
+        return
 
-    # Debug log the full event
-    logger.info("Event: chat_type=%s, chat_id=%s, message_id=%s, sender_type=%s, open_id=%s",
-                message.get("chat_type"), message.get("chat_id"),
-                message.get("message_id"), sender.get("sender_type"), open_id)
-
-    # Ignore bot's own messages
-    sender_type = sender.get("sender_type", "")
-    if sender_type != "user":
-        return JSONResponse({"code": 0})
-
-    chat_id = message.get("chat_id", "")
-    chat_type = message.get("chat_type", "")
-    message_id_lark = message.get("message_id", "")
-    thread_id = message.get("root_id") or message.get("parent_id") or ""
-    msg_type = message.get("message_type", "")
-
-    # For p2p (private chat), use chat_id as thread_id
-    if chat_type == "p2p":
-        thread_id = chat_id
-    elif chat_type == "group" and not thread_id:
-        # Group chat without thread — ignore (only respond in threads)
-        return JSONResponse({"code": 0})
-
-    # Extract text content
-    if msg_type != "text":
-        return JSONResponse({"code": 0})
+    if message.message_type != "text":
+        return
 
     try:
-        content_json = json.loads(message.get("content", "{}"))
+        content_json = json.loads(message.content or "{}")
         user_text = content_json.get("text", "").strip()
     except (json.JSONDecodeError, AttributeError):
-        return JSONResponse({"code": 0})
+        return
 
     if not user_text:
-        return JSONResponse({"code": 0})
+        return
 
-    # Process asynchronously
-    asyncio.create_task(_handle_message(chat_id, chat_type, thread_id, message_id_lark, user_text, open_id))
-    return JSONResponse({"code": 0})
+    thread_id = chat_id  # p2p: one conversation per chat
+    asyncio.run_coroutine_threadsafe(
+        _handle_message(chat_id, message_id, thread_id, user_text),
+        _loop,
+    )
 
 
-async def _handle_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str, open_id: str = "") -> None:
-    """Handle a single message: call Claude, reply with card."""
-    # Per-thread lock for serial processing
+async def _handle_message(chat_id: str, message_id: str, thread_id: str, user_text: str) -> None:
     if thread_id not in _thread_locks:
         _thread_locks[thread_id] = asyncio.Lock()
 
     async with _thread_locks[thread_id]:
         try:
-            await _process_message(chat_id, chat_type, thread_id, user_message_id, user_text, open_id)
+            await _process_message(chat_id, message_id, thread_id, user_text)
         except Exception:
             logger.exception("Error processing message in thread %s", thread_id)
 
 
-async def _process_message(chat_id: str, chat_type: str, thread_id: str, user_message_id: str, user_text: str, open_id: str = "") -> None:
-    """Core message processing: call Claude API, send/reply with card."""
-    # Always reply to the user's message (works for both p2p and group)
-    card_id = lark_client.reply_card(user_message_id)
+async def _process_message(chat_id: str, message_id: str, thread_id: str, user_text: str) -> None:
+    # Acknowledge with emoji reaction
+    lark_client.add_reaction(message_id, "Typing")
 
-    if not card_id:
-        logger.warning("Card send/reply failed for thread %s", thread_id)
-        return
+    docx_hit = docx_client.extract_docx_url(user_text)
 
-    # Get agent response
-    full_text = ""
-    async for chunk in agent_client.send_and_stream(thread_id, user_text):
-        full_text += chunk
+    if docx_hit:
+        doc_id, url = docx_hit
 
-    # Update card with final response
-    if full_text:
-        lark_client.update_card(card_id, full_text)
+        if await session_store.document_exists(doc_id):
+            lark_client.reply_card(message_id, f"这份文档已经整理过了（doc_id={doc_id}）。")
+            return
+
+        card_id = lark_client.reply_card(message_id, "正在读取飞书文档...")
+        if not card_id:
+            logger.warning("Failed to send placeholder card (reply to %s)", message_id)
+            return
+
+        # Fetch raw content via Feishu Docx API (blocking HTTP in a thread)
+        doc, err = await asyncio.to_thread(docx_client.fetch_raw_content, doc_id, url)
+        if not doc:
+            lark_client.update_card(card_id, f"读取文档失败：{err}")
+            return
+
+        lark_client.update_card(card_id, f"已读取「{doc.title or doc_id}」，正在整理到 wiki...")
+
+        prompt_text = (
+            f"下面是一份飞书会议纪要文档的内容，请整理到 wiki。\n\n"
+            f"标题：{doc.title or '(无标题)'}\n"
+            f"文档 ID：{doc.doc_id}\n"
+            f"URL：{doc.url}\n\n"
+            f"正文：\n{doc.raw_content}"
+        )
+        mode = "ingest"
+        ingest_doc = doc
     else:
-        lark_client.update_card(card_id, "Sorry, no response generated.")
+        card_id = lark_client.reply_card(message_id, "思考中...")
+        if not card_id:
+            logger.warning("Failed to send placeholder card (reply to %s)", message_id)
+            return
+        prompt_text = user_text
+        mode = "query"
+        ingest_doc = None
+
+    full_text = ""
+    error_msg: str | None = None
+    try:
+        async for chunk in agent_client.send_and_stream(thread_id, prompt_text, mode=mode):
+            full_text += chunk
+    except Exception as e:
+        logger.exception("Agent stream failed thread=%s", thread_id)
+        error_msg = f"处理失败：{type(e).__name__}: {str(e)[:300]}"
+
+    # Only mark a doc as ingested after Claude finishes successfully.
+    if ingest_doc and full_text and not error_msg:
+        await session_store.save_document(
+            ingest_doc.doc_id, ingest_doc.url, ingest_doc.title, thread_id
+        )
+
+    if error_msg:
+        display = (full_text + "\n\n---\n" + error_msg) if full_text else error_msg
+    else:
+        display = full_text or "抱歉，没有生成回复。"
+    lark_client.update_card(card_id, display)
+
+
+def main() -> None:
+    global _loop
+    _loop = _start_background_loop()
+
+    # Initialize DB on the background loop
+    future = asyncio.run_coroutine_threadsafe(session_store.init_db(), _loop)
+    future.result(timeout=10)
+    logger.info("DB ready; starting long-connection client")
+
+    event_handler = (
+        lark.EventDispatcherHandler.builder("", "")
+        .register_p2_im_message_receive_v1(on_message)
+        .build()
+    )
+
+    cli = lark.ws.Client(
+        app_id=config.LARK_APP_ID,
+        app_secret=config.LARK_APP_SECRET,
+        event_handler=event_handler,
+        log_level=lark.LogLevel.DEBUG,
+    )
+    cli.start()
+
+
+if __name__ == "__main__":
+    main()

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import requests as http_requests
 
 import lark_oapi as lark
 from lark_oapi.api.im.v1 import (
@@ -32,6 +33,38 @@ def _build_card(content: str) -> str:
         ],
     }
     return json.dumps(card, ensure_ascii=False)
+
+
+def add_reaction(message_id: str, emoji_type: str = "EYES") -> bool:
+    """Add an emoji reaction to a message. Common types: EYES, THUMBSUP, OK."""
+    token = _get_tenant_token()
+    if not token:
+        logger.error("Failed to get tenant token for reaction")
+        return False
+
+    resp = http_requests.post(
+        f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}/reactions",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"reaction_type": {"emoji_type": emoji_type}},
+    )
+    data = resp.json()
+    if data.get("code", -1) != 0:
+        logger.error("Failed to add reaction: %s", data.get("msg"))
+        return False
+    logger.info("Added %s reaction to %s", emoji_type, message_id)
+    return True
+
+
+def _get_tenant_token() -> str | None:
+    """Get tenant_access_token for API calls not covered by lark SDK."""
+    resp = http_requests.post(
+        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+        json={"app_id": LARK_APP_ID, "app_secret": LARK_APP_SECRET},
+    )
+    data = resp.json()
+    if data.get("code", -1) != 0:
+        return None
+    return data.get("tenant_access_token")
 
 
 def send_card_p2p(receive_id: str, content: str = "thinking...", receive_id_type: str = "open_id") -> str | None:
