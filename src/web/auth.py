@@ -1,28 +1,55 @@
 """H5 登录与鉴权。
 
-一个签名 cookie（uid）= 登录凭证。校验失败就 302 到 /login。
+一个签名 cookie（uid）= 登录凭证。校验失败就去 Lark OAuth 或 /login（兜底）。
 
-当前支持：
-  - 密码登录（APP_ACCESS_PASSWORD，临时兜底）
-  - /auth/lark（Lark 小程序 code → open_id，Step 2 再接入真实交换）
+登录入口：
+  - /auth/lark：Lark 网页应用 OAuth（在飞书内自动静默授权）
+  - /login：密码登录（APP_ACCESS_PASSWORD，兜底 / 外部调试用）
 
-后续：Lark OAuth 打通后，/login 密码登录降级为 fallback（只保留不删，方便直连调试）。
+Lark OAuth 流程（重定向式）：
+  1. 用户无 cookie 访问受保护路径
+  2. 中间件 302 到 /auth/lark?next=<原路径>
+  3. /auth/lark 无 code → 302 到飞书 authorize 页（state=signed(next)）
+  4. 飞书静默回调 /auth/lark?code=xxx&state=xxx
+  5. 换 open_id → 种 cookie → 302 到 next
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 from typing import Optional
+from urllib.parse import urlencode
 
+import requests as http_requests
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from starlette.middleware.base import BaseHTTPMiddleware
 
+logger = logging.getLogger(__name__)
+
 COOKIE_NAME = "uid"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 天
 OPEN_PATHS = {"/login", "/logout", "/auth/lark", "/healthz"}
+
+LARK_APP_ID = os.environ.get("LARK_APP_ID", "")
+LARK_APP_SECRET = os.environ.get("LARK_APP_SECRET", "")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "").rstrip("/")
+
+LARK_AUTHORIZE_URL = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
+LARK_TOKEN_URL = "https://open.feishu.cn/open-apis/authen/v2/oauth/token"
+LARK_USERINFO_URL = "https://open.feishu.cn/open-apis/authen/v1/user_info"
+STATE_MAX_AGE = 300  # 5 分钟，足够 Lark 回跳
+
+
+def _lark_enabled() -> bool:
+    return bool(LARK_APP_ID and LARK_APP_SECRET and APP_BASE_URL)
+
+
+def _safe_next(n: str) -> str:
+    return n if n.startswith("/") and not n.startswith("//") else "/customers"
 
 
 def _serializer() -> URLSafeTimedSerializer:
@@ -30,6 +57,24 @@ def _serializer() -> URLSafeTimedSerializer:
     if not secret:
         raise RuntimeError("APP_SECRET_KEY env var is required")
     return URLSafeTimedSerializer(secret, salt="uid-cookie")
+
+
+def _state_serializer() -> URLSafeTimedSerializer:
+    secret = os.environ.get("APP_SECRET_KEY")
+    if not secret:
+        raise RuntimeError("APP_SECRET_KEY env var is required")
+    return URLSafeTimedSerializer(secret, salt="lark-oauth-state")
+
+
+def _sign_state(next_path: str) -> str:
+    return _state_serializer().dumps(next_path)
+
+
+def _verify_state(token: str) -> Optional[str]:
+    try:
+        return _state_serializer().loads(token, max_age=STATE_MAX_AGE)
+    except Exception:
+        return None
 
 
 def sign(uid: str) -> str:
@@ -60,7 +105,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             nxt = path
             if request.url.query:
                 nxt = f"{path}?{request.url.query}"
-            return RedirectResponse(url=f"/login?next={nxt}", status_code=302)
+            # 配好了 Lark 走 OAuth；否则走密码（兜底）
+            login_url = "/auth/lark" if _lark_enabled() else "/login"
+            return RedirectResponse(url=f"{login_url}?next={nxt}", status_code=302)
 
         request.state.uid = uid
         return await call_next(request)
@@ -152,14 +199,96 @@ def logout():
     return resp
 
 
-@router.get("/auth/lark")
-def auth_lark(code: str = "", redirect: str = "/customers"):
-    """Step 2 接入：code → open_id → cookie。
-
-    现在返回 501，防止忘了配置就上线。
-    """
+def _err_html(msg: str, status: int = 401) -> HTMLResponse:
     return HTMLResponse(
-        "<p style='padding:40px;text-align:center;color:#E54545'>"
-        "Lark OAuth 未配置，当前请用 /login 密码登录</p>",
-        status_code=501,
+        f"<p style='padding:40px;text-align:center;color:#E54545;font-family:-apple-system,sans-serif'>"
+        f"{msg}</p>",
+        status_code=status,
     )
+
+
+@router.get("/auth/lark")
+def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
+    """Lark 网页应用 OAuth 入口 + 回调。
+
+    - 无 code：302 到飞书 authorize 页（state 里带 next）
+    - 有 code：POST /open-apis/authen/v2/oauth/token 换 open_id → 种 cookie → 302 next
+    """
+    if not _lark_enabled():
+        return _err_html(
+            "Lark OAuth 未配置（缺 LARK_APP_ID / LARK_APP_SECRET / APP_BASE_URL），请用 /login 登录",
+            status=501,
+        )
+
+    redirect_uri = f"{APP_BASE_URL}/auth/lark"
+
+    # Step 1: 没 code → 跳飞书
+    if not code:
+        params = {
+            "app_id": LARK_APP_ID,
+            "redirect_uri": redirect_uri,
+            "state": _sign_state(_safe_next(next)),
+        }
+        return RedirectResponse(
+            url=f"{LARK_AUTHORIZE_URL}?{urlencode(params)}",
+            status_code=302,
+        )
+
+    # Step 2: code → access_token
+    next_path = _safe_next(_verify_state(state) or "/customers")
+    try:
+        tok_resp = http_requests.post(
+            LARK_TOKEN_URL,
+            json={
+                "grant_type": "authorization_code",
+                "client_id": LARK_APP_ID,
+                "client_secret": LARK_APP_SECRET,
+                "code": code,
+                "redirect_uri": redirect_uri,
+            },
+            timeout=10,
+        )
+        tok_data = tok_resp.json()
+    except Exception:
+        logger.exception("Lark token exchange failed")
+        return _err_html("登录失败：无法连接飞书授权服务器", status=502)
+
+    access_token = tok_data.get("access_token")
+    if not access_token:
+        logger.error("Lark token exchange: no access_token, response=%s", tok_data)
+        return _err_html(
+            f"登录失败：{tok_data.get('error_description') or tok_data.get('msg') or '未获取到 access_token'}",
+            status=401,
+        )
+
+    # Step 3: access_token → open_id（v2 token 接口不返回 open_id，要再调 user_info）
+    try:
+        info_resp = http_requests.get(
+            LARK_USERINFO_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        )
+        info_data = info_resp.json()
+    except Exception:
+        logger.exception("Lark user_info failed")
+        return _err_html("登录失败：拉取用户信息失败", status=502)
+
+    open_id = (info_data.get("data") or {}).get("open_id") or info_data.get("open_id")
+    if not open_id:
+        logger.error("Lark user_info: no open_id, response=%s", info_data)
+        return _err_html(
+            f"登录失败：{info_data.get('msg') or info_data.get('error_description') or '未获取到 open_id'}",
+            status=401,
+        )
+
+    resp = RedirectResponse(url=next_path, status_code=302)
+    resp.set_cookie(
+        COOKIE_NAME,
+        sign(open_id),
+        max_age=MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    logger.info("Lark login success: open_id=%s next=%s", open_id, next_path)
+    return resp
