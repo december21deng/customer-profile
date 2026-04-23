@@ -184,11 +184,12 @@ def _fetch_followup_page(
 
     if q:
         sql.append(
-            "AND (c.name LIKE ? OR r.background LIKE ? "
-            "     OR r.summary LIKE ? OR r.location LIKE ?)"
+            "AND (c.name LIKE ? OR r.meeting_title LIKE ? "
+            "     OR r.progress_line LIKE ? "
+            "     OR r.background LIKE ? OR r.summary LIKE ?)"
         )
         kw = f"%{q}%"
-        params.extend([kw, kw, kw, kw])
+        params.extend([kw, kw, kw, kw, kw])
 
     if cursor is not None:
         md, rid = cursor

@@ -16,7 +16,7 @@
     <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
   </svg>
   <input type="search" name="q" value="{{ q }}"
-         placeholder="{% if tab == 'records' %}搜索记录内容 / 标题 / 客户名{% else %}搜索客户名 / 行业{% endif %}"
+         placeholder="{% if tab == 'records' %}搜索客户 / 主题 / 进展 / 内容{% else %}搜索客户名{% endif %}"
          autocomplete="off" />
   <input type="hidden" name="tab" value="{{ tab }}" />
   {% if owner %}<input type="hidden" name="owner" value="{{ owner }}" />{% endif %}
