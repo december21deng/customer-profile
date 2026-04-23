@@ -62,7 +62,11 @@
               {% set color = palette[ (r.owner_id|string|length) % 8 ] %}
               <span class="avatar" style="background: {{ color }}">{{ ch }}</span>{{ r.owner_name }}
             {% else %}
-              <span class="pool-pill">企业公共客户池</span>
+              <span class="avatar-pool" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm-6 16a6 6 0 1 1 12 0H6z"/>
+                </svg>
+              </span>企业公共客户池
             {% endif %}
           </span>
         </div>

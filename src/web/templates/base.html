@@ -9,7 +9,7 @@
 <style>
   /* ============ Lark palette (bg-body + fill-0..2 / text-0..3) ============ */
   :root {
-    --bg:            #F5F6F7;   /* bg-body */
+    --bg:            #FAFBFC;   /* bg-body：接近白，卡片仍有微妙分离感 */
     --surface:       #FFFFFF;   /* bg-float */
     --neutral-900:   #1F2329;   /* text-title */
     --neutral-700:   #373A40;
@@ -52,14 +52,21 @@
 
   /* ============ header ============ */
   .header {
+    display: flex; align-items: center;
+    gap: 10px;
     padding: 16px 4px 8px;
+  }
+  .brand-icon {
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    color: var(--blue-600);
   }
   .header h1 {
     margin: 0;
     font-size: 20px;
     font-weight: 600;
     color: var(--neutral-900);
-    letter-spacing: 0;
+    letter-spacing: -0.2px;
   }
 
   /* ============ search ============ */
@@ -239,12 +246,16 @@
     font-family: var(--sans);
     flex-shrink: 0;
   }
-  .pool-pill {
-    display: inline-flex; align-items: center;
-    background: var(--neutral-100); color: var(--neutral-500);
-    padding: 3px 10px; border-radius: 999px;
-    font-size: 12px;
+  /* 公共池的头像：灰色圆 + 人形 icon —— 和有负责人时统一成 "圆 + 文字" pattern */
+  .avatar-pool {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--neutral-100);
+    color: var(--neutral-400);
+    flex-shrink: 0;
   }
+  .avatar-pool svg { width: 12px; height: 12px; }
 
   /* ============ + button on card ============ */
   .card .plus-btn {
@@ -252,23 +263,22 @@
     top: 14px; right: 14px;
     width: 32px; height: 32px;
     border-radius: 50%;
-    background: var(--neutral-50);
-    color: var(--neutral-500);
+    background: var(--blue-600);
+    color: #fff;
     display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--neutral-200);
+    border: 0;
+    box-shadow: 0 2px 6px rgba(51,112,255,0.25);
     transition: background .15s cubic-bezier(.4,0,.2,1),
                 transform .15s cubic-bezier(.4,0,.2,1),
-                color .15s cubic-bezier(.4,0,.2,1),
-                border-color .15s cubic-bezier(.4,0,.2,1);
+                box-shadow .15s cubic-bezier(.4,0,.2,1);
     z-index: 1;
   }
   .card .plus-btn:active {
-    background: var(--blue-600);
-    color: #fff;
-    border-color: var(--blue-600);
-    transform: scale(0.94);
+    background: #2856cc;
+    box-shadow: 0 1px 3px rgba(51,112,255,0.35);
+    transform: scale(0.92);
   }
-  .card .plus-btn svg { width: 14px; height: 14px; }
+  .card .plus-btn svg { width: 14px; height: 14px; stroke-width: 2.5; }
 
   /* ============ sentinel / terminal ============ */
   .sentinel {
