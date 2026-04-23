@@ -49,6 +49,10 @@ WIKI_DIR = PROJECT_ROOT / "wiki"
 WIKI_DIR.mkdir(parents=True, exist_ok=True)
 (WIKI_DIR / "customers").mkdir(exist_ok=True)
 
+# 危险运维接口的开关密码（如 /followup/{id}/regen-wiki）。
+# 空串 → 接口 403 关闭。需要的话在 Fly secrets 里设 DEV_REGEN_PASSWORD。
+DEV_REGEN_PASSWORD = os.environ.get("DEV_REGEN_PASSWORD", "")
+
 # ByteHouse CRM
 BH_HOST = os.environ.get("BH_HOST", "")
 BH_PORT = int(os.environ.get("BH_PORT", "19000"))

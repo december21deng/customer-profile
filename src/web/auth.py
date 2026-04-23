@@ -62,6 +62,28 @@ def _state_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(APP_SECRET_KEY, salt="lark-oauth-state")
 
 
+def _csrf_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(APP_SECRET_KEY, salt="csrf")
+
+
+CSRF_MAX_AGE = 60 * 60 * 8  # 8 小时；与单次表单会话匹配即可
+
+
+def sign_csrf(uid: str) -> str:
+    """给 uid 签一个短期 CSRF token。同一用户 token 不绑定具体表单，简化实现。"""
+    return _csrf_serializer().dumps(uid)
+
+
+def verify_csrf(token: str, uid: str) -> bool:
+    if not token:
+        return False
+    try:
+        signed_uid = _csrf_serializer().loads(token, max_age=CSRF_MAX_AGE)
+    except Exception:
+        return False
+    return signed_uid == uid
+
+
 def _sign_state(next_path: str) -> str:
     return _state_serializer().dumps(next_path)
 
@@ -86,8 +108,17 @@ def verify(token: str) -> Optional[str]:
         return None
 
 
+# 免 CSRF 校验的 POST 路径（登录自身显然不能要求 CSRF）。
+CSRF_EXEMPT_POSTS = {"/login"}
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
-    """所有路径默认需要 uid cookie；白名单路径 + /static/* 放行。"""
+    """所有路径默认需要 uid cookie；白名单路径 + /static/* 放行。
+
+    登录后还会：
+    - 给 request.state.csrf_token 注入一个 8h 有效的 CSRF token（模板里用）
+    - 对 state-changing 方法（POST/PUT/PATCH/DELETE）强制校验 csrf_token
+    """
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -106,6 +137,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return RedirectResponse(url=f"{login_url}?next={nxt}", status_code=302)
 
         request.state.uid = uid
+        request.state.csrf_token = sign_csrf(uid)
+
+        # CSRF：state-changing 方法必须带有效 csrf_token
+        if request.method in ("POST", "PUT", "PATCH", "DELETE") and path not in CSRF_EXEMPT_POSTS:
+            supplied = request.headers.get("X-CSRF-Token", "")
+            if not supplied:
+                # 从表单里读（multipart / urlencoded）
+                try:
+                    form = await request.form()
+                    supplied = form.get("csrf_token", "") or ""
+                except Exception:
+                    supplied = ""
+            if not verify_csrf(supplied, uid):
+                logger.warning("csrf rejected: uid=%s path=%s method=%s", uid, path, request.method)
+                return HTMLResponse(
+                    "<p style='padding:40px;text-align:center;color:#E54545;font-family:-apple-system,sans-serif'>"
+                    "会话已过期或无效请求，请刷新页面重试。</p>",
+                    status_code=403,
+                )
+
         return await call_next(request)
 
 

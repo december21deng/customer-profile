@@ -20,3 +20,5 @@ data/photos/
 # Fly 上 /app/wiki → /data/wiki，/app/raw → /data/raw（symlink，start.sh 拉起）
 /wiki/
 /raw/
+.gstack/
+.gstack-designs/

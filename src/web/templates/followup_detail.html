@@ -102,20 +102,4 @@
   </a>
 </section>
 {% endif %}
-
-<form method="post" action="/followup/{{ r.id }}/regen-wiki"
-      style="margin-top: 12px; text-align: center;">
-  <button type="submit" class="regen-btn">重新生成 AI 摘要</button>
-</form>
-<style>
-  .regen-btn {
-    background: transparent;
-    color: var(--neutral-400);
-    border: 0;
-    padding: 10px;
-    font-size: 13px;
-    text-decoration: underline;
-  }
-  .regen-btn:active { color: var(--blue-600); }
-</style>
 {% endblock %}

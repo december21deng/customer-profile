@@ -18,6 +18,7 @@
       action="/customers/{{ customer.id }}/followup"
       enctype="multipart/form-data"
       id="followup-form">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
 
   <div class="form-section">
     <div class="form-field">
@@ -107,13 +108,24 @@
       <label class="form-label">
         客户参会人员<span class="req">*</span>
       </label>
-      <div class="tag-input">
+      <div class="tag-input" id="client-wrap">
         <div class="tag-list" id="client-chips"></div>
-        <div class="tag-actions">
-          <input type="text" class="tag-fallback-input" id="client-input"
-                 placeholder="输入姓名，回车添加" maxlength="40"
-                 autocomplete="off" autocorrect="off"
-                 autocapitalize="none" spellcheck="false">
+        <div class="tag-actions picker-anchor">
+          <button type="button" class="picker-btn" id="client-add-trigger">
+            <span class="picker-plus">+</span>
+            <span>添加客户</span>
+          </button>
+
+          <div class="picker-panel picker-panel-compact" id="client-add-panel" hidden>
+            <input type="text" class="picker-search" id="client-add-input"
+                   placeholder="输入客户姓名" maxlength="40"
+                   autocomplete="off" autocorrect="off"
+                   autocapitalize="none" spellcheck="false">
+            <div class="picker-mini-actions">
+              <button type="button" class="picker-mini-btn" id="client-add-cancel">取消</button>
+              <button type="button" class="picker-mini-btn picker-mini-primary" id="client-add-confirm" disabled>添加</button>
+            </div>
+          </div>
         </div>
       </div>
       <input type="hidden" name="client_attendees" id="f-client"
@@ -387,29 +399,69 @@
       }
     );
 
-    var clientInput = document.getElementById('client-input');
-    function addClient() {
-      // 归一化：两端空白、内部多空格合一；防 IME 瞎插空格（"to m" → "tom" 类情形也能解）
+    var clientTrigger = document.getElementById('client-add-trigger');
+    var clientPanel   = document.getElementById('client-add-panel');
+    var clientInput   = document.getElementById('client-add-input');
+    var clientConfirm = document.getElementById('client-add-confirm');
+    var clientCancel  = document.getElementById('client-add-cancel');
+    var clientAnchor  = clientTrigger.closest('.picker-anchor');
+
+    function clientShowPanel() {
+      clientTrigger.hidden = true;
+      clientPanel.hidden = false;
+      clientInput.value = '';
+      clientConfirm.disabled = true;
+      // 给 iOS 键盘一点时间
+      setTimeout(function() { clientInput.focus(); }, 0);
+    }
+    function clientHidePanel() {
+      clientPanel.hidden = true;
+      clientTrigger.hidden = false;
+      clientInput.value = '';
+      clientConfirm.disabled = true;
+    }
+    function clientSyncBtn() {
+      clientConfirm.disabled = clientInput.value.trim().length === 0;
+    }
+    function clientCommit() {
       var name = clientInput.value.trim().replace(/\s+/g, ' ');
       if (!name) return;
-      // 去重（忽略大小写）
       var lower = name.toLowerCase();
       var dup = clientState.some(function(n) { return String(n).toLowerCase() === lower; });
       if (dup) {
         clientInput.value = '';
+        clientSyncBtn();
         return;
       }
       clientState.push(name);
       clientCtl.sync();
       clientInput.value = '';
+      clientSyncBtn();
+      // 连续录入体验：不关面板，保持焦点
+      clientInput.focus();
     }
+
+    clientTrigger.addEventListener('click', function(e) { e.preventDefault(); clientShowPanel(); });
+    clientCancel .addEventListener('click', function(e) { e.preventDefault(); clientHidePanel(); });
+    clientConfirm.addEventListener('click', function(e) { e.preventDefault(); clientCommit(); });
+    clientInput.addEventListener('input', clientSyncBtn);
     clientInput.addEventListener('keydown', function(e) {
+      if (e.isComposing || e.keyCode === 229) return;  // 避 IME 吞键
       if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
         e.preventDefault();
-        addClient();
+        clientCommit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        clientHidePanel();
       }
     });
-    clientInput.addEventListener('blur', addClient);
+    // 点面板外自动收：已有输入就先入 chip，再收
+    document.addEventListener('click', function(e) {
+      if (clientPanel.hidden) return;
+      if (clientAnchor.contains(e.target)) return;
+      clientCommit();
+      clientHidePanel();
+    });
 
     clientCtl.render();
 
@@ -578,7 +630,7 @@
     }
 
     // 所有表单输入都挂上 debounce 保存
-    ['f-transcript','f-minutes','f-date','f-loc','f-bg','client-input'].forEach(function(id) {
+    ['f-transcript','f-minutes','f-date','f-loc','f-bg','client-add-input'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('input', saveDraftDebounced);
     });
@@ -665,7 +717,8 @@
     var form = document.getElementById('followup-form');
     var btn = document.getElementById('submit-btn');
     form.addEventListener('submit', function() {
-      addClient();  // 若还有未回车的名字一并加上
+      // 面板里如果还有未确认的名字，一并加上
+      if (!clientPanel.hidden) clientCommit();
       localStorage.removeItem(DRAFT_KEY);  // 提交成功前就清，反正失败会回填 values
       btn.disabled = true;
       btn.textContent = '提交中…';

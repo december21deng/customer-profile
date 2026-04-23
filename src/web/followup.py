@@ -259,10 +259,30 @@ async def followup_submit(
 
 
 @router.post("/followup/{record_id}/regen-wiki")
-def regen_wiki(record_id: str, background_tasks: BackgroundTasks):
-    """手动重跑完整 ingest pipeline（fetch+ingest+extract+commit）。立即返回，后台跑。"""
+def regen_wiki(record_id: str, request: Request, background_tasks: BackgroundTasks):
+    """手动重跑完整 ingest pipeline（fetch+ingest+extract+commit）。
+
+    这个接口会花 Claude token，必须把调用权限收得比普通登录用户更紧：
+    - DEV_REGEN_PASSWORD 未配置 → 关闭（403）
+    - 请求头 X-Dev-Password 必须匹配
+    - 即使知道 URL 的登录用户也不能直接打
+    """
+    from src.config import DEV_REGEN_PASSWORD  # 延迟 import，避免循环
+
+    if not DEV_REGEN_PASSWORD:
+        raise HTTPException(status_code=403, detail="regen-wiki disabled")
+    supplied = request.headers.get("X-Dev-Password", "")
+    # 常量时间比较，避免 timing attack 泄露密码长度/前缀
+    import hmac
+    if not hmac.compare_digest(supplied, DEV_REGEN_PASSWORD):
+        raise HTTPException(status_code=403, detail="bad dev password")
+
+    logger.warning(
+        "regen-wiki triggered by uid=%s record_id=%s",
+        getattr(request.state, "uid", "?"), record_id,
+    )
     background_tasks.add_task(run_ingest_pipeline, record_id)
-    return RedirectResponse(url=f"/followup/{record_id}", status_code=302)
+    return {"ok": True, "record_id": record_id}
 
 
 def _format_meeting_date(s: str | None) -> str:
@@ -369,12 +389,17 @@ def users_search(request: Request, q: str = "", limit: int = 20):
         oid = u.get("open_id")
         if not (name and oid):
             continue
-        # 次要文本：优先英文名（区别同名）；没有就留空。
-        # department_ids 是内部 ID，直接显示没意义，要名字得另调部门接口，先不展示。
+        # 次要文本：飞书 en_name 偶尔被设成员工号/ID 乱码（脏数据），
+        # 展示出来对用户毫无意义，反而像个 bug。
+        # 只在 en_name 看起来是"正常英文名"（纯字母 + 可能的空格/点/短横）时才展示。
         sub = ""
-        en = u.get("en_name") or ""
+        en = (u.get("en_name") or "").strip()
         if en and en != name:
-            sub = en
+            looks_like_real_name = all(
+                c.isalpha() or c in " .-'" for c in en
+            )
+            if looks_like_real_name:
+                sub = en
         items.append({
             "id": oid,
             "name": name,

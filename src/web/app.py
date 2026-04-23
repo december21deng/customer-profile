@@ -18,6 +18,8 @@
 from __future__ import annotations
 
 import base64
+import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
@@ -29,6 +31,26 @@ from fastapi.templating import Jinja2Templates
 from src.db.connection import connect
 from src.web.auth import AuthMiddleware, router as auth_router
 from src.web.followup import router as followup_router
+
+logger = logging.getLogger(__name__)
+
+# ---- Sentry（可选）--------------------------------------------------
+# 设置了 SENTRY_DSN 才启用；没设就静悄悄跳过，本地开发不受影响。
+_sentry_dsn = os.environ.get("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get("APP_ENV", "dev"),
+            release=os.environ.get("FLY_MACHINE_VERSION") or os.environ.get("GIT_SHA", "unknown"),
+            traces_sample_rate=0.0,      # 性能追踪先关（免费额度有限）
+            profiles_sample_rate=0.0,
+            send_default_pii=False,      # 不自动带 cookies / 请求体
+        )
+        logger.info("Sentry initialized (env=%s)", os.environ.get("APP_ENV", "dev"))
+    except Exception:
+        logger.exception("Sentry init failed; continuing without error reporting")
 
 DetailTab = Literal["info", "followup"]
 

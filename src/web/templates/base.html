@@ -615,6 +615,35 @@
   }
   .tag-fallback-input::placeholder { color: var(--neutral-300); }
   .tag-fallback-input:focus { outline: none; }
+  /* 紧凑版面板（客户录入用）：比搜索面板少一个结果区 */
+  .picker-panel-compact { padding: 10px; }
+  .picker-mini-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 8px;
+  }
+  .picker-mini-btn {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--neutral-200);
+    background: #fff;
+    color: var(--neutral-700, #4a4a4a);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .picker-mini-btn:active { background: var(--neutral-50); }
+  .picker-mini-primary {
+    border-color: var(--blue-600);
+    background: var(--blue-600);
+    color: #fff;
+  }
+  .picker-mini-primary:active { background: var(--blue-700, #2856cc); }
+  .picker-mini-primary:disabled {
+    background: var(--neutral-100);
+    border-color: var(--neutral-100);
+    color: var(--neutral-300);
+    cursor: not-allowed;
+  }
 
   /* ============ 人员选择器（按钮 + 展开面板） ============ */
   .picker-anchor {
