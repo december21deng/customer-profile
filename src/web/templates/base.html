@@ -159,14 +159,14 @@
     position: relative;
     display: block;
     background: var(--surface);
-    border-radius: 14px;
-    padding: 18px 18px 18px 22px;    /* 左 padding +4 给 accent 留位置 */
-    box-shadow: 0 1px 3px rgba(31,35,41,0.05),
-                0 0 0 1px rgba(31,35,41,0.04);
-    transition: background .12s ease, transform .12s ease;
-    overflow: hidden;                 /* 确保 ::before accent 不超出圆角 */
+    border-radius: 12px;
+    padding: 18px 18px 18px 22px;
+    /* 极平面化：去掉阴影，只用最淡的 hairline border 分离 */
+    border: 1px solid rgba(31, 35, 41, 0.06);
+    transition: background .12s ease;
+    overflow: hidden;
   }
-  /* 左侧蓝色 accent 竖条 —— 视觉重量，像 Linear / Notion 卡片 */
+  /* 左侧蓝色 accent 竖条（保留 —— 这是参考图的核心视觉锚点）*/
   .card::before {
     content: "";
     position: absolute;
@@ -176,10 +176,7 @@
     background: var(--blue-600);
     border-radius: 2px;
   }
-  .card:active {
-    background: var(--bg);
-    transform: scale(0.997);
-  }
+  .card:active { background: var(--neutral-50); }
 
   .card .name {
     font-size: 16px;
@@ -257,28 +254,24 @@
   }
   .avatar-pool svg { width: 12px; height: 12px; }
 
-  /* ============ + button on card ============ */
+  /* + button：ghost 样式，降低视觉权重让内容唱主角 */
   .card .plus-btn {
     position: absolute;
-    top: 14px; right: 14px;
-    width: 32px; height: 32px;
+    top: 12px; right: 12px;
+    width: 28px; height: 28px;
     border-radius: 50%;
-    background: var(--blue-600);
-    color: #fff;
+    background: transparent;
+    color: var(--neutral-400);
     display: inline-flex; align-items: center; justify-content: center;
     border: 0;
-    box-shadow: 0 2px 6px rgba(51,112,255,0.25);
-    transition: background .15s cubic-bezier(.4,0,.2,1),
-                transform .15s cubic-bezier(.4,0,.2,1),
-                box-shadow .15s cubic-bezier(.4,0,.2,1);
+    transition: background .12s ease, color .12s ease;
     z-index: 1;
   }
   .card .plus-btn:active {
-    background: #2856cc;
-    box-shadow: 0 1px 3px rgba(51,112,255,0.35);
-    transform: scale(0.92);
+    background: var(--blue-50);
+    color: var(--blue-600);
   }
-  .card .plus-btn svg { width: 14px; height: 14px; stroke-width: 2.5; }
+  .card .plus-btn svg { width: 14px; height: 14px; stroke-width: 2; }
 
   /* ============ sentinel / terminal ============ */
   .sentinel {
