@@ -145,4 +145,19 @@ SCHEMA = [
     "ON ingest_jobs(status, updated_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_customer "
     "ON ingest_jobs(customer_id, started_at DESC)",
+
+    # =========================================================
+    # 用户飞书 token（OAuth 回调后存，用于调用 user_access_token 身份的飞书 API
+    # 例如 contact:user:search 搜同事）
+    # =========================================================
+    """
+    CREATE TABLE IF NOT EXISTS user_tokens (
+        open_id              TEXT PRIMARY KEY,
+        access_token         TEXT NOT NULL,
+        refresh_token        TEXT NOT NULL,
+        access_expires_at    TEXT NOT NULL,   -- ISO，2h 有效期
+        refresh_expires_at   TEXT NOT NULL,   -- ISO，30d 有效期
+        updated_at           TEXT NOT NULL
+    )
+    """,
 ]

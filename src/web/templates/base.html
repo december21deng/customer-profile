@@ -598,36 +598,74 @@
   .tag-fallback-input::placeholder { color: var(--neutral-300); }
   .tag-fallback-input:focus { outline: none; }
 
-  /* ============ user search dropdown ============ */
-  .user-search {
+  /* ============ 人员选择器（按钮 + 展开面板） ============ */
+  .picker-anchor {
     position: relative;
-    display: block;
+    display: flex; align-items: center; gap: 10px;
   }
-  .user-search .tag-fallback-input {
+  .picker-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 999px;
+    background: var(--blue-50);
+    color: var(--blue-600);
+    font-size: 13px;
+    font-weight: 500;
+    border: 0;
+    cursor: pointer;
+  }
+  .picker-btn:active:not(:disabled) { background: rgba(51,112,255,0.16); }
+  .picker-btn:disabled {
+    background: var(--neutral-100);
+    color: var(--neutral-300);
+    cursor: not-allowed;
+  }
+  .picker-plus {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px;
+    font-size: 16px; font-weight: 600;
+    line-height: 1;
+  }
+  .picker-hint {
+    font-size: 12px;
+    color: var(--neutral-400);
+  }
+  /* 展开的搜索面板 */
+  .picker-panel {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    background: #fff;
+    border: 1px solid var(--neutral-200);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(31,35,41,0.12);
+    padding: 8px;
+    z-index: 20;
+  }
+  .picker-search {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--neutral-200);
     border-radius: 8px;
-    background: #fff;
     font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--neutral-900);
+    box-sizing: border-box;
   }
-  .user-search .tag-fallback-input:focus {
+  .picker-search:focus {
+    outline: none;
     border-color: var(--blue-600);
     box-shadow: 0 0 0 3px rgba(51,112,255,0.1);
   }
-  .user-search-dropdown {
-    position: absolute;
-    left: 0; right: 0; top: calc(100% + 4px);
+  .picker-search::placeholder { color: var(--neutral-300); }
+  .picker-results {
     max-height: 240px;
     overflow-y: auto;
-    background: #fff;
-    border: 1px solid var(--neutral-100);
-    border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(31,35,41,0.12);
-    z-index: 20;
-    padding: 4px;
+    margin-top: 6px;
   }
-  .user-search-item {
+  .picker-results:empty { display: none; }
+  .picker-item {
     display: flex; align-items: center; gap: 8px;
     width: 100%;
     padding: 8px 10px;
@@ -638,32 +676,33 @@
     font: inherit;
     color: var(--neutral-900);
   }
-  .user-search-item:hover:not(:disabled) { background: var(--neutral-50); }
-  .user-search-item:active:not(:disabled) { background: var(--blue-50); }
-  .user-search-item.picked,
-  .user-search-item:disabled {
+  .picker-item:hover:not(:disabled) { background: var(--neutral-50); }
+  .picker-item:active:not(:disabled) { background: var(--blue-50); }
+  .picker-item.picked,
+  .picker-item:disabled {
     color: var(--neutral-400);
     cursor: default;
   }
-  .user-search-item.picked .chip-avatar { background: var(--neutral-300); }
-  .user-search-name {
+  .picker-item.picked .chip-avatar { background: var(--neutral-300); }
+  .picker-name {
     flex: 1;
     font-size: 14px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .user-search-depart {
+  .picker-depart {
     font-size: 12px;
     color: var(--neutral-400);
     white-space: nowrap;
-    max-width: 50%;
+    max-width: 45%;
     overflow: hidden; text-overflow: ellipsis;
   }
-  .user-search-empty {
+  .picker-empty {
     padding: 14px 10px;
     text-align: center;
     font-size: 13px;
     color: var(--neutral-400);
   }
+  .picker-empty a { color: var(--blue-600); text-decoration: underline; }
 
   .chip-tag {
     display: inline-flex; align-items: center; gap: 4px;

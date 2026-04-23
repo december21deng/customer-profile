@@ -23,10 +23,13 @@ from fastapi.templating import Jinja2Templates
 
 from src.db.connection import connect, transaction
 from src.ingest.pipeline import run as run_ingest_pipeline
-from src.lark_client import fetch_docx_raw, sign_jssdk
+from src.lark_client import (
+    fetch_docx_raw,
+    get_user_access_token,
+    search_feishu_users,
+    sign_jssdk,
+)
 from src import photo_storage
-
-USER_SEARCH_LIMIT = 20
 
 logger = logging.getLogger(__name__)
 
@@ -332,11 +335,12 @@ def followup_detail(request: Request, record_id: str):
 
 
 @router.get("/api/users/search")
-def users_search(q: str = "", limit: int = USER_SEARCH_LIMIT):
-    """按姓名模糊搜 crm_users，返回 [{id, name, depart}]。
+def users_search(request: Request, q: str = "", limit: int = 20):
+    """按姓名搜飞书 Directory 员工。
 
-    id 优先用 feishu_open_id（有则），否则 crm_users.id。前端把整条存进
-    our_attendees 的 JSON，所以两种都能接受（历史数据也是混的）。
+    - 用当前登录用户的 user_access_token 调 /contact/v3/user/search
+    - 权限 scope：contact:user:search（需要在飞书后台开通 + 版本审核）
+    - 401 → 前端提示用户重新登录（cookie 里的 uid 对应的 user_tokens 表没有或已失效）
     """
     q = (q or "").strip()
     if not q:
@@ -344,35 +348,35 @@ def users_search(q: str = "", limit: int = USER_SEARCH_LIMIT):
     if len(q) > 40:
         q = q[:40]
     try:
-        limit = max(1, min(int(limit), USER_SEARCH_LIMIT))
+        limit = max(1, min(int(limit), 20))
     except (TypeError, ValueError):
-        limit = USER_SEARCH_LIMIT
+        limit = 20
 
-    like = f"%{q}%"
-    conn = connect()
-    try:
-        rows = conn.execute(
-            """
-            SELECT id, display_name, dim_depart, feishu_open_id
-            FROM crm_users
-            WHERE display_name LIKE ?
-            ORDER BY display_name
-            LIMIT ?
-            """,
-            (like, limit),
-        ).fetchall()
-    finally:
-        conn.close()
+    open_id = getattr(request.state, "uid", None)
+    # 密码登录的 uid 是 'pwd-user'，搜不了
+    if not open_id or not open_id.startswith("ou_"):
+        raise HTTPException(status_code=401, detail="feishu_login_required")
 
+    token = get_user_access_token(open_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="reauth_required")
+
+    users = search_feishu_users(token, q, limit=limit)
     items = []
-    for r in rows:
-        d = dict(r)
-        if not d.get("display_name"):
+    for u in users:
+        name = u.get("name") or u.get("en_name")
+        oid = u.get("open_id")
+        if not (name and oid):
             continue
+        # department_path 在响应里可能嵌在 department_ids → 名称需要另查；这里先用 department_ids 做简单展示
+        depart = ""
+        if u.get("department_ids"):
+            depart = u["department_ids"][0] if isinstance(u["department_ids"], list) else ""
         items.append({
-            "id": d.get("feishu_open_id") or d["id"],
-            "name": d["display_name"],
-            "depart": d.get("dim_depart") or "",
+            "id": oid,
+            "name": name,
+            "depart": depart,
+            "avatar": (u.get("avatar") or {}).get("avatar_72") or "",
         })
     return {"items": items}
 

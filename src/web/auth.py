@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+from datetime import datetime, timedelta
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -29,6 +30,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.config import APP_ACCESS_PASSWORD, APP_SECRET_KEY, LARK_APP_ID, LARK_APP_SECRET
+from src.db.connection import connect, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +202,42 @@ def _err_html(msg: str, status: int = 401) -> HTMLResponse:
     )
 
 
+def _store_user_tokens(
+    open_id: str,
+    access_token: str,
+    refresh_token: str,
+    expires_in: int,
+    refresh_expires_in: int,
+) -> None:
+    """OAuth 拿到的 token 存库，后续调飞书 user_access_token 身份的 API 用。"""
+    now = datetime.now()
+    access_expires_at = (now + timedelta(seconds=expires_in)).isoformat(timespec="seconds")
+    refresh_expires_at = (now + timedelta(seconds=refresh_expires_in)).isoformat(timespec="seconds")
+    now_iso = now.isoformat(timespec="seconds")
+
+    conn = connect()
+    try:
+        with transaction(conn):
+            conn.execute(
+                """
+                INSERT INTO user_tokens
+                    (open_id, access_token, refresh_token,
+                     access_expires_at, refresh_expires_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(open_id) DO UPDATE SET
+                    access_token       = excluded.access_token,
+                    refresh_token      = excluded.refresh_token,
+                    access_expires_at  = excluded.access_expires_at,
+                    refresh_expires_at = excluded.refresh_expires_at,
+                    updated_at         = excluded.updated_at
+                """,
+                (open_id, access_token, refresh_token,
+                 access_expires_at, refresh_expires_at, now_iso),
+            )
+    finally:
+        conn.close()
+
+
 @router.get("/auth/lark")
 def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
     """Lark 网页应用 OAuth 入口 + 回调。
@@ -216,11 +254,15 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
     redirect_uri = f"{APP_BASE_URL}/auth/lark"
 
     # Step 1: 没 code → 跳飞书
+    # scope 必须显式请求才能把权限注入 user_access_token：
+    #   - contact:user:search：搜同事（1.0.7 已发布 ✅）
+    #   - offline_access：拿 refresh_token（1.0.8 审核中，暂不加，等批了再加）
     if not code:
         params = {
             "app_id": LARK_APP_ID,
             "redirect_uri": redirect_uri,
             "state": _sign_state(_safe_next(next)),
+            "scope": "contact:user:search",
         }
         return RedirectResponse(
             url=f"{LARK_AUTHORIZE_URL}?{urlencode(params)}",
@@ -247,6 +289,11 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
         return _err_html("登录失败：无法连接飞书授权服务器", status=502)
 
     access_token = tok_data.get("access_token")
+    refresh_token = tok_data.get("refresh_token") or ""
+    expires_in = int(tok_data.get("expires_in") or 7200)
+    refresh_expires_in = int(
+        tok_data.get("refresh_token_expires_in") or tok_data.get("refresh_expires_in") or 2592000
+    )
     if not access_token:
         logger.error("Lark token exchange: no access_token, response=%s", tok_data)
         return _err_html(
@@ -272,6 +319,29 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
         return _err_html(
             f"登录失败：{info_data.get('msg') or info_data.get('error_description') or '未获取到 open_id'}",
             status=401,
+        )
+
+    # 存 token，供 user_access_token 身份的 API 调用（如搜同事）
+    # 没 refresh_token 也存（只是 2h 后要重登），保证本地测试能跑。
+    try:
+        _store_user_tokens(
+            open_id=open_id,
+            access_token=access_token,
+            refresh_token=refresh_token or "",
+            expires_in=expires_in,
+            refresh_expires_in=refresh_expires_in if refresh_token else 0,
+        )
+        logger.info(
+            "stored user_tokens for open_id=%s (access_exp=%ds, has_refresh=%s)",
+            open_id, expires_in, bool(refresh_token),
+        )
+    except Exception:
+        logger.exception("store user tokens failed for %s (continue anyway)", open_id)
+    if not refresh_token:
+        logger.warning(
+            "Lark token response missing refresh_token for %s (tok_data keys=%s); "
+            "user will need to re-OAuth in %d seconds",
+            open_id, list(tok_data.keys()), expires_in,
         )
 
     resp = RedirectResponse(url=next_path, status_code=302)

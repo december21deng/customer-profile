@@ -73,10 +73,19 @@
       </label>
       <div class="tag-input" id="our-wrap">
         <div class="tag-list" id="our-chips"></div>
-        <div class="tag-actions user-search" id="our-search">
-          <input type="text" class="tag-fallback-input" id="our-search-input"
-                 placeholder="搜同事姓名" autocomplete="off" maxlength="40">
-          <div class="user-search-dropdown" id="our-search-dropdown" hidden></div>
+        <div class="tag-actions picker-anchor">
+          <button type="button" class="picker-btn" id="our-pick-btn">
+            <span class="picker-plus">+</span>
+            <span>选择同事</span>
+          </button>
+
+          <div class="picker-panel" id="our-pick-panel" hidden>
+            <input type="text" class="picker-search" id="our-pick-search"
+                   placeholder="搜同事姓名（飞书通讯录）" autocomplete="off" maxlength="40">
+            <div class="picker-results" id="our-pick-results"></div>
+          </div>
+
+          <div class="picker-hint" id="our-pick-hint" hidden></div>
         </div>
       </div>
       <input type="hidden" name="our_attendees" id="f-our"
@@ -174,14 +183,13 @@
       });
     }
 
-    // -------- 我方参会人员 -----------------------------------
+    // -------- 我方参会人员（飞书原生 selectChatter） ------------
     var ourHidden = document.getElementById('f-our');
     var ourState = [];
     try {
       var raw = ourHidden.value;
       if (raw) ourState = JSON.parse(raw) || [];
     } catch(e) { ourState = []; }
-
     // 兼容旧数据：{open_id, name} → {id, name}
     ourState = ourState.map(function(p) {
       return { id: p.id || p.open_id, name: p.name };
@@ -207,99 +215,126 @@
         return el;
       }
     );
+    ourCtl.render();
 
-    // --- 搜索下拉 ----------------------------------------------
-    var searchInput = document.getElementById('our-search-input');
-    var dropdown = document.getElementById('our-search-dropdown');
-    var searchWrap = document.getElementById('our-search');
-    var searchTimer = null;
-    var lastQuery = '';
+    var pickBtn     = document.getElementById('our-pick-btn');
+    var pickPanel   = document.getElementById('our-pick-panel');
+    var pickSearch  = document.getElementById('our-pick-search');
+    var pickResults = document.getElementById('our-pick-results');
+    var pickHint    = document.getElementById('our-pick-hint');
+    var pickAnchor  = pickBtn.closest('.picker-anchor');
+    var pickTimer   = null;
+    var pickLastQ   = '';
 
-    function hideDropdown() {
-      dropdown.hidden = true;
-      dropdown.innerHTML = '';
+    function showHint(msg) {
+      pickHint.textContent = msg;
+      pickHint.hidden = false;
+    }
+
+    function hidePanel() {
+      pickPanel.hidden = true;
+      pickBtn.hidden = false;
+      pickSearch.value = '';
+      pickResults.innerHTML = '';
+      pickLastQ = '';
+    }
+
+    function showPanel() {
+      pickHint.hidden = true;
+      pickBtn.hidden = true;
+      pickPanel.hidden = false;
+      pickSearch.focus();
     }
 
     function hasPicked(id) {
       return ourState.some(function(p) { return p.id && p.id === id; });
     }
 
-    function renderDropdown(items) {
-      if (!items.length) {
-        dropdown.innerHTML = '<div class="user-search-empty">没有匹配的同事</div>';
-        dropdown.hidden = false;
+    function renderResults(items) {
+      if (!items || items.length === 0) {
+        pickResults.innerHTML = '<div class="picker-empty">未搜到匹配的同事</div>';
         return;
       }
-      dropdown.innerHTML = items.map(function(it) {
+      pickResults.innerHTML = items.map(function(it) {
         var picked = hasPicked(it.id);
-        var depart = it.depart ? '<span class="user-search-depart">' + escapeHtml(it.depart) + '</span>' : '';
-        return '<button type="button" class="user-search-item' + (picked ? ' picked' : '') + '" ' +
-               'data-id="' + escapeHtml(it.id) + '" ' +
-               'data-name="' + escapeHtml(it.name) + '"' +
-               (picked ? ' disabled' : '') + '>' +
-               '<span class="chip-avatar">' + escapeHtml(it.name.slice(0,1)) + '</span>' +
-               '<span class="user-search-name">' + escapeHtml(it.name) + '</span>' +
+        var depart = it.depart
+          ? '<span class="picker-depart">' + escapeHtml(it.depart) + '</span>'
+          : '';
+        return '<button type="button" class="picker-item' + (picked ? ' picked' : '') + '"' +
+               ' data-id="' + escapeHtml(it.id) + '"' +
+               ' data-name="' + escapeHtml(it.name) + '"' +
+               (picked ? ' disabled' : '') +
+               '>' +
+               '<span class="chip-avatar">' + escapeHtml(it.name.slice(0, 1)) + '</span>' +
+               '<span class="picker-name">' + escapeHtml(it.name) + '</span>' +
                depart +
                '</button>';
       }).join('');
-      dropdown.hidden = false;
     }
 
     function doSearch(q) {
       fetch('/api/users/search?q=' + encodeURIComponent(q))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (q !== lastQuery) return;
-          renderDropdown((data && data.items) || []);
+        .then(function(resp) {
+          if (resp.status === 401) {
+            pickResults.innerHTML = '<div class="picker-empty">请通过飞书登录后再使用搜索（<a href="/auth/lark?next=' +
+                                    encodeURIComponent(location.pathname + location.search) +
+                                    '">去登录</a>）</div>';
+            throw new Error('unauthorized');
+          }
+          return resp.json();
         })
-        .catch(function(e) {
-          console.error('user search failed:', e);
-          dropdown.innerHTML = '<div class="user-search-empty">搜索失败</div>';
-          dropdown.hidden = false;
+        .then(function(data) {
+          if (q !== pickLastQ) return;
+          renderResults((data && data.items) || []);
+        })
+        .catch(function(err) {
+          if (err && err.message === 'unauthorized') return;
+          console.error('user search failed:', err);
+          pickResults.innerHTML = '<div class="picker-empty">搜索失败，请重试</div>';
         });
     }
 
-    searchInput.addEventListener('input', function() {
-      var q = searchInput.value.trim();
-      lastQuery = q;
-      if (searchTimer) clearTimeout(searchTimer);
+    pickBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      showPanel();
+    });
+
+    pickSearch.addEventListener('input', function() {
+      var q = pickSearch.value.trim();
+      pickLastQ = q;
+      if (pickTimer) clearTimeout(pickTimer);
       if (!q) {
-        hideDropdown();
+        pickResults.innerHTML = '';
         return;
       }
-      searchTimer = setTimeout(function() { doSearch(q); }, 200);
+      pickTimer = setTimeout(function() { doSearch(q); }, 200);
     });
 
-    searchInput.addEventListener('focus', function() {
-      var q = searchInput.value.trim();
-      if (q) doSearch(q);
+    pickSearch.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); hidePanel(); }
     });
 
-    dropdown.addEventListener('click', function(e) {
-      var btn = e.target.closest('.user-search-item');
+    pickResults.addEventListener('click', function(e) {
+      var btn = e.target.closest('.picker-item');
       if (!btn || btn.disabled) return;
       var id = btn.getAttribute('data-id');
       var name = btn.getAttribute('data-name');
-      if (!name) return;
+      if (!id || !name) return;
       if (ourState.length >= 20) {
-        alert('最多选择 20 人');
+        alert('最多选 20 人');
         return;
       }
-      if (!hasPicked(id)) {
-        ourState.push({ id: id, name: name });
-        ourCtl.sync();
-      }
-      searchInput.value = '';
-      lastQuery = '';
-      hideDropdown();
-      searchInput.focus();
+      ourState.push({ id: id, name: name });
+      ourCtl.sync();
+      // 标已选，保留面板以便连续选
+      btn.disabled = true;
+      btn.classList.add('picked');
     });
 
     document.addEventListener('click', function(e) {
-      if (!searchWrap.contains(e.target)) hideDropdown();
+      if (pickPanel.hidden) return;
+      if (!pickAnchor.contains(e.target)) hidePanel();
     });
-
-    ourCtl.render();
 
     // -------- 客户参会人员 -----------------------------------
     var clientHidden = document.getElementById('f-client');

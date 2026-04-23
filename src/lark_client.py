@@ -269,6 +269,183 @@ def fetch_docx_raw(doc_id: str) -> tuple[str | None, str | None]:
     return content, None
 
 
+# ------------- 用户身份 token（OAuth 拿的 user_access_token）---------
+# 存在 user_tokens 表，OAuth 回调时由 auth.py 写入。
+# 这里只负责：按需取出 + 过期 refresh + 透传给调用方。
+
+from datetime import datetime, timedelta  # noqa: E402
+from src.db.connection import connect, transaction  # noqa: E402
+
+# 过期前多少秒就刷新（避免卡在边界）
+_USER_TOKEN_REFRESH_SKEW = 60
+
+
+def _parse_iso(s: str) -> datetime:
+    return datetime.fromisoformat(s)
+
+
+def _load_user_tokens(open_id: str) -> dict | None:
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT * FROM user_tokens WHERE open_id = ?", (open_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _save_user_tokens(
+    open_id: str, access_token: str, refresh_token: str,
+    expires_in: int, refresh_expires_in: int,
+) -> None:
+    now = datetime.now()
+    access_exp = (now + timedelta(seconds=expires_in)).isoformat(timespec="seconds")
+    refresh_exp = (now + timedelta(seconds=refresh_expires_in)).isoformat(timespec="seconds")
+    now_iso = now.isoformat(timespec="seconds")
+
+    conn = connect()
+    try:
+        with transaction(conn):
+            conn.execute(
+                """
+                INSERT INTO user_tokens
+                    (open_id, access_token, refresh_token,
+                     access_expires_at, refresh_expires_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(open_id) DO UPDATE SET
+                    access_token = excluded.access_token,
+                    refresh_token = excluded.refresh_token,
+                    access_expires_at = excluded.access_expires_at,
+                    refresh_expires_at = excluded.refresh_expires_at,
+                    updated_at = excluded.updated_at
+                """,
+                (open_id, access_token, refresh_token, access_exp, refresh_exp, now_iso),
+            )
+    finally:
+        conn.close()
+
+
+def _refresh_user_token(row: dict) -> str | None:
+    """用 refresh_token 换新的 access_token。失败返回 None。"""
+    try:
+        resp = http_requests.post(
+            "https://open.feishu.cn/open-apis/authen/v2/oauth/token",
+            json={
+                "grant_type": "refresh_token",
+                "client_id": LARK_APP_ID,
+                "client_secret": LARK_APP_SECRET,
+                "refresh_token": row["refresh_token"],
+            },
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("refresh user token: http failed")
+        return None
+
+    new_access = data.get("access_token")
+    new_refresh = data.get("refresh_token") or row["refresh_token"]
+    if not new_access:
+        logger.error(
+            "refresh user token failed: code=%s msg=%s",
+            data.get("code"), data.get("msg") or data.get("error_description"),
+        )
+        return None
+
+    _save_user_tokens(
+        open_id=row["open_id"],
+        access_token=new_access,
+        refresh_token=new_refresh,
+        expires_in=int(data.get("expires_in") or 7200),
+        refresh_expires_in=int(
+            data.get("refresh_token_expires_in") or data.get("refresh_expires_in") or 2592000
+        ),
+    )
+    return new_access
+
+
+def get_user_access_token(open_id: str) -> str | None:
+    """拿当前用户的 user_access_token，过期自动 refresh。
+
+    返回 None 意味着：token 根本没有（用户从没 OAuth 过，或 refresh 也过期）。
+    调用方应当返回 401 让前端重新走 OAuth。
+    """
+    row = _load_user_tokens(open_id)
+    if not row:
+        return None
+
+    now = datetime.now()
+    try:
+        access_exp = _parse_iso(row["access_expires_at"])
+        refresh_exp = _parse_iso(row["refresh_expires_at"])
+    except Exception:
+        logger.warning("user_tokens corrupt iso for %s, forcing re-auth", open_id)
+        return None
+
+    # access 未过期 → 直接用（这个判断放最前，refresh_token 可能是空的）
+    if now + timedelta(seconds=_USER_TOKEN_REFRESH_SKEW) < access_exp:
+        return row["access_token"]
+
+    # access 过期 or 快过期
+    # 没有 refresh_token 就没救（未申请 offline_access scope 的情况）
+    if not row.get("refresh_token"):
+        logger.info(
+            "user %s access_token expired and no refresh_token; "
+            "needs re-OAuth (offline_access not granted?)", open_id,
+        )
+        return None
+
+    # refresh_token 也过期 → 没救
+    if now >= refresh_exp:
+        logger.info("refresh_token expired for %s, re-auth needed", open_id)
+        return None
+
+    # access 过期 + refresh 还有效 → refresh
+    return _refresh_user_token(row)
+
+
+def search_feishu_users(user_token: str, query: str, limit: int = 20) -> list[dict]:
+    """用用户身份搜公司员工。
+
+    需要权限：contact:user:search（user_access_token）。
+    返回 [{open_id, name, department_path, avatar_url, ...}]。
+    失败返回 []（打日志）。
+    """
+    # 官方端点：GET /open-apis/search/v1/user（对应 scope contact:user:search）
+    try:
+        resp = http_requests.get(
+            "https://open.feishu.cn/open-apis/search/v1/user",
+            headers={"Authorization": f"Bearer {user_token}"},
+            params={"query": query, "page_size": limit},
+            timeout=10,
+        )
+    except Exception:
+        logger.exception("search_feishu_users: http exception")
+        return []
+
+    # 把响应概况打出来便于诊断（400/403/200 都要看）
+    body_preview = resp.text[:500] if resp.text else "(empty body)"
+    try:
+        data = resp.json()
+    except Exception:
+        logger.warning(
+            "search_feishu_users: non-JSON response  status=%d  content-type=%s  body[:500]=%r",
+            resp.status_code, resp.headers.get("Content-Type"), body_preview,
+        )
+        return []
+
+    if data.get("code", -1) != 0:
+        logger.warning(
+            "search_feishu_users: code=%s msg=%s  data=%r",
+            data.get("code"), data.get("msg"), data,
+        )
+        return []
+
+    users = (data.get("data") or {}).get("users") or []
+    return users
+
+
 def update_card(message_id: str, content: str) -> bool:
     """Update (PATCH) an existing card's content. Returns success."""
     body = PatchMessageRequestBody.builder() \
