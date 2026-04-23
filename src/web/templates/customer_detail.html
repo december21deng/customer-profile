@@ -3,26 +3,27 @@
 {% block body %}
 <a href="/customers" class="detail-back">返回</a>
 
-<h1 class="detail-title">{{ c.name }}</h1>
-
-<div class="tag-chips">
-  {% if c.crm_is_customer %}
-    <span class="chip chip-customer">客户</span>
-  {% else %}
-    <span class="chip chip-lead">潜客</span>
-  {% endif %}
-  {% if c.crm_state %}<span class="chip">{{ c.crm_state }}</span>{% endif %}
-  {% if c.industry %}<span class="chip">{{ c.industry }}</span>{% endif %}
-  {% if c.crm_level %}
-    {% set lvl = c.crm_level|string|upper %}
-    {% if 'A' in lvl %}
-      <span class="chip chip-level-high">{{ c.crm_level }} 级</span>
-    {% elif 'C' in lvl or 'D' in lvl %}
-      <span class="chip chip-level-low">{{ c.crm_level }} 级</span>
+<div class="detail-header">
+  <h1 class="detail-title">{{ c.name }}</h1>
+  <div class="tag-chips">
+    {% if c.crm_is_customer %}
+      <span class="chip chip-customer">客户</span>
     {% else %}
-      <span class="chip">{{ c.crm_level }} 级</span>
+      <span class="chip chip-lead">潜客</span>
     {% endif %}
-  {% endif %}
+    {% if c.crm_state %}<span class="chip">{{ c.crm_state }}</span>{% endif %}
+    {% if c.industry %}<span class="chip">{{ c.industry }}</span>{% endif %}
+    {% if c.crm_level %}
+      {% set lvl = c.crm_level|string|upper %}
+      {% if 'A' in lvl %}
+        <span class="chip chip-level-high">{{ c.crm_level }} 级</span>
+      {% elif 'C' in lvl or 'D' in lvl %}
+        <span class="chip chip-level-low">{{ c.crm_level }} 级</span>
+      {% else %}
+        <span class="chip">{{ c.crm_level }} 级</span>
+      {% endif %}
+    {% endif %}
+  </div>
 </div>
 
 <nav class="tabs detail-tabs">
@@ -53,8 +54,10 @@
   </div>
 
   <section class="section">
-    <h3>客户所有人</h3>
-    <div class="owner-name">{{ c.owner_name or '企业公共客户池' }}</div>
+    <div class="kv">
+      <span class="k">客户所有人</span>
+      <span class="v">{{ c.owner_name or '企业公共客户池' }}</span>
+    </div>
     <div class="kv">
       <span class="k">客户阶段</span>
       <span class="v {% if not c.crm_sale_stage_id %}muted{% endif %}">—</span>
