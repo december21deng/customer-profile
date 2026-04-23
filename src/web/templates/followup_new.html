@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}新增跟进 · {{ customer.name }}{% endblock %}
+{% block body %}
+<a href="/customers/{{ customer.id }}" class="detail-back">返回</a>
+
+<h1 class="detail-title">新增跟进</h1>
+
+<form method="post"
+      action="/customers/{{ customer.id }}/followup"
+      enctype="multipart/form-data"
+      id="followup-form">
+
+  <div class="form-section">
+    <div class="form-field">
+      <label class="form-label">客户</label>
+      <div class="form-readonly">{{ customer.name }}</div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-field">
+      <label class="form-label" for="f-transcript">
+        妙记链接<span class="req">*</span>
+      </label>
+      <input class="form-input" id="f-transcript" name="transcript_url" type="url"
+             placeholder="粘贴飞书妙记链接"
+             value="{{ values.transcript_url or '' }}" required>
+      {% if errors.transcript_url %}
+        <div class="form-error">{{ errors.transcript_url }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label class="form-label" for="f-minutes">
+        会议纪要链接<span class="req">*</span>
+      </label>
+      <input class="form-input" id="f-minutes" name="minutes_url" type="url"
+             placeholder="粘贴飞书会议纪要 docx 链接"
+             value="{{ values.minutes_url or '' }}" required>
+      {% if errors.minutes_url %}
+        <div class="form-error">{{ errors.minutes_url }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label class="form-label" for="f-date">
+        会议时间<span class="req">*</span>
+      </label>
+      <input class="form-input" id="f-date" name="meeting_date" type="datetime-local"
+             value="{{ values.meeting_date or '' }}" required>
+      {% if errors.meeting_date %}
+        <div class="form-error">{{ errors.meeting_date }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label class="form-label" for="f-loc">
+        地点<span class="req">*</span>
+      </label>
+      <input class="form-input" id="f-loc" name="location" type="text"
+             placeholder="例：上海办公室 / 腾讯会议"
+             maxlength="100" value="{{ values.location or '' }}" required>
+      {% if errors.location %}
+        <div class="form-error">{{ errors.location }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-field">
+      <label class="form-label">
+        我方参会人员<span class="req">*</span>
+      </label>
+      <div class="tag-input" id="our-wrap">
+        <div class="tag-list" id="our-chips"></div>
+        <div class="tag-actions user-search" id="our-search">
+          <input type="text" class="tag-fallback-input" id="our-search-input"
+                 placeholder="搜同事姓名" autocomplete="off" maxlength="40">
+          <div class="user-search-dropdown" id="our-search-dropdown" hidden></div>
+        </div>
+      </div>
+      <input type="hidden" name="our_attendees" id="f-our"
+             value="{{ values.our_attendees or '' }}">
+      {% if errors.our_attendees %}
+        <div class="form-error">{{ errors.our_attendees }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label class="form-label">
+        客户参会人员<span class="req">*</span>
+      </label>
+      <div class="tag-input">
+        <div class="tag-list" id="client-chips"></div>
+        <div class="tag-actions">
+          <input type="text" class="tag-fallback-input" id="client-input"
+                 placeholder="输入姓名，回车添加" maxlength="40">
+        </div>
+      </div>
+      <input type="hidden" name="client_attendees" id="f-client"
+             value="{{ values.client_attendees or '' }}">
+      {% if errors.client_attendees %}
+        <div class="form-error">{{ errors.client_attendees }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-field">
+      <label class="form-label" for="f-bg">
+        会议背景<span class="req">*</span>
+      </label>
+      <textarea class="form-textarea" id="f-bg" name="background"
+                placeholder="本次会议的目的 / 客户诉求 / 上下文"
+                maxlength="500" required>{{ values.background or '' }}</textarea>
+      {% if errors.background %}
+        <div class="form-error">{{ errors.background }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-field">
+      <label class="form-label">
+        客户合照<span class="req">*</span>
+      </label>
+      <label class="photo-drop" id="photo-drop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2"/>
+          <circle cx="12" cy="12" r="3.5"/>
+          <path d="M8 5l1.5-2h5L16 5"/>
+        </svg>
+        <div>点击上传（≤ 10MB）</div>
+        <input type="file" name="photo" id="f-photo"
+               accept="image/jpeg,image/png,image/gif" required>
+      </label>
+      <div class="photo-preview" id="photo-preview" hidden>
+        <img id="photo-img" alt="预览">
+        <button type="button" class="clear" id="photo-clear" aria-label="移除">×</button>
+      </div>
+      {% if errors.photo %}
+        <div class="form-error">{{ errors.photo }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="form-submit">
+    <button type="submit" class="btn-primary" id="submit-btn">提交</button>
+  </div>
+</form>
+
+<script>
+  (function() {
+    // -------- 通用：tag 组件 ---------------------------------
+    function makeTagList(chipWrap, hiddenInput, getItems, setItems, renderChip) {
+      function render() {
+        chipWrap.innerHTML = '';
+        getItems().forEach(function(item, idx) {
+          var el = renderChip(item, idx);
+          chipWrap.appendChild(el);
+        });
+      }
+      function sync() {
+        hiddenInput.value = JSON.stringify(getItems());
+        render();
+      }
+      return { render: render, sync: sync };
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+      });
+    }
+
+    // -------- 我方参会人员 -----------------------------------
+    var ourHidden = document.getElementById('f-our');
+    var ourState = [];
+    try {
+      var raw = ourHidden.value;
+      if (raw) ourState = JSON.parse(raw) || [];
+    } catch(e) { ourState = []; }
+
+    // 兼容旧数据：{open_id, name} → {id, name}
+    ourState = ourState.map(function(p) {
+      return { id: p.id || p.open_id, name: p.name };
+    }).filter(function(p) { return p.name; });
+
+    var ourChips = document.getElementById('our-chips');
+    var ourCtl = makeTagList(
+      ourChips, ourHidden,
+      function() { return ourState; },
+      function(v) { ourState = v; },
+      function(p, idx) {
+        var name = p.name || '?';
+        var ch = name.slice(0, 1);
+        var el = document.createElement('span');
+        el.className = 'chip-tag';
+        el.innerHTML = '<span class="chip-avatar">' + escapeHtml(ch) + '</span>' +
+                       '<span>' + escapeHtml(name) + '</span>' +
+                       '<button type="button" class="chip-rm" aria-label="移除">×</button>';
+        el.querySelector('.chip-rm').onclick = function() {
+          ourState.splice(idx, 1);
+          ourCtl.sync();
+        };
+        return el;
+      }
+    );
+
+    // --- 搜索下拉 ----------------------------------------------
+    var searchInput = document.getElementById('our-search-input');
+    var dropdown = document.getElementById('our-search-dropdown');
+    var searchWrap = document.getElementById('our-search');
+    var searchTimer = null;
+    var lastQuery = '';
+
+    function hideDropdown() {
+      dropdown.hidden = true;
+      dropdown.innerHTML = '';
+    }
+
+    function hasPicked(id) {
+      return ourState.some(function(p) { return p.id && p.id === id; });
+    }
+
+    function renderDropdown(items) {
+      if (!items.length) {
+        dropdown.innerHTML = '<div class="user-search-empty">没有匹配的同事</div>';
+        dropdown.hidden = false;
+        return;
+      }
+      dropdown.innerHTML = items.map(function(it) {
+        var picked = hasPicked(it.id);
+        var depart = it.depart ? '<span class="user-search-depart">' + escapeHtml(it.depart) + '</span>' : '';
+        return '<button type="button" class="user-search-item' + (picked ? ' picked' : '') + '" ' +
+               'data-id="' + escapeHtml(it.id) + '" ' +
+               'data-name="' + escapeHtml(it.name) + '"' +
+               (picked ? ' disabled' : '') + '>' +
+               '<span class="chip-avatar">' + escapeHtml(it.name.slice(0,1)) + '</span>' +
+               '<span class="user-search-name">' + escapeHtml(it.name) + '</span>' +
+               depart +
+               '</button>';
+      }).join('');
+      dropdown.hidden = false;
+    }
+
+    function doSearch(q) {
+      fetch('/api/users/search?q=' + encodeURIComponent(q))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (q !== lastQuery) return;
+          renderDropdown((data && data.items) || []);
+        })
+        .catch(function(e) {
+          console.error('user search failed:', e);
+          dropdown.innerHTML = '<div class="user-search-empty">搜索失败</div>';
+          dropdown.hidden = false;
+        });
+    }
+
+    searchInput.addEventListener('input', function() {
+      var q = searchInput.value.trim();
+      lastQuery = q;
+      if (searchTimer) clearTimeout(searchTimer);
+      if (!q) {
+        hideDropdown();
+        return;
+      }
+      searchTimer = setTimeout(function() { doSearch(q); }, 200);
+    });
+
+    searchInput.addEventListener('focus', function() {
+      var q = searchInput.value.trim();
+      if (q) doSearch(q);
+    });
+
+    dropdown.addEventListener('click', function(e) {
+      var btn = e.target.closest('.user-search-item');
+      if (!btn || btn.disabled) return;
+      var id = btn.getAttribute('data-id');
+      var name = btn.getAttribute('data-name');
+      if (!name) return;
+      if (ourState.length >= 20) {
+        alert('最多选择 20 人');
+        return;
+      }
+      if (!hasPicked(id)) {
+        ourState.push({ id: id, name: name });
+        ourCtl.sync();
+      }
+      searchInput.value = '';
+      lastQuery = '';
+      hideDropdown();
+      searchInput.focus();
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!searchWrap.contains(e.target)) hideDropdown();
+    });
+
+    ourCtl.render();
+
+    // -------- 客户参会人员 -----------------------------------
+    var clientHidden = document.getElementById('f-client');
+    var clientState = [];
+    try {
+      var craw = clientHidden.value;
+      if (craw) clientState = JSON.parse(craw) || [];
+    } catch(e) { clientState = []; }
+
+    var clientChips = document.getElementById('client-chips');
+    var clientCtl = makeTagList(
+      clientChips, clientHidden,
+      function() { return clientState; },
+      function(v) { clientState = v; },
+      function(name, idx) {
+        var el = document.createElement('span');
+        el.className = 'chip-tag';
+        el.innerHTML = '<span>' + name + '</span>' +
+                       '<button type="button" class="chip-rm" aria-label="移除">×</button>';
+        el.querySelector('.chip-rm').onclick = function() {
+          clientState.splice(idx, 1);
+          clientCtl.sync();
+        };
+        return el;
+      }
+    );
+
+    var clientInput = document.getElementById('client-input');
+    function addClient() {
+      var name = clientInput.value.trim();
+      if (!name) return;
+      clientState.push(name);
+      clientCtl.sync();
+      clientInput.value = '';
+    }
+    clientInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+        e.preventDefault();
+        addClient();
+      }
+    });
+    clientInput.addEventListener('blur', addClient);
+
+    clientCtl.render();
+
+    // -------- 照片预览 ---------------------------------------
+    var fileInput = document.getElementById('f-photo');
+    var drop = document.getElementById('photo-drop');
+    var preview = document.getElementById('photo-preview');
+    var img = document.getElementById('photo-img');
+    var clearBtn = document.getElementById('photo-clear');
+
+    fileInput.addEventListener('change', function() {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      if (f.size > 10 * 1024 * 1024) {
+        alert('图片不得超过 10MB');
+        fileInput.value = '';
+        return;
+      }
+      var url = URL.createObjectURL(f);
+      img.src = url;
+      preview.hidden = false;
+      drop.hidden = true;
+    });
+
+    clearBtn.addEventListener('click', function() {
+      fileInput.value = '';
+      img.src = '';
+      preview.hidden = true;
+      drop.hidden = false;
+    });
+
+    // -------- 防双击提交 + blur 触发未提交的 tag -----------
+    var form = document.getElementById('followup-form');
+    var btn = document.getElementById('submit-btn');
+    form.addEventListener('submit', function() {
+      addClient();  // 若还有未回车的名字一并加上
+      btn.disabled = true;
+      btn.textContent = '提交中…';
+    });
+  })();
+</script>
+{% endblock %}

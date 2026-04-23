@@ -28,10 +28,12 @@ from fastapi.templating import Jinja2Templates
 
 from src.db.connection import connect
 from src.web.auth import AuthMiddleware, router as auth_router
+from src.web.followup import router as followup_router
 
 DetailTab = Literal["info", "followup"]
 
 PAGE_SIZE = 30
+FOLLOWUP_PAGE_SIZE = 20
 Tab = Literal["customers", "records"]
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -40,6 +42,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app = FastAPI(title="客户助手")
 app.add_middleware(AuthMiddleware)
 app.include_router(auth_router)
+app.include_router(followup_router)
 
 
 # ---- cursor 编解码 -------------------------------------------------
@@ -128,6 +131,81 @@ def _next_cursor(rows: list[dict]) -> str:
     return _encode_cursor(last["updated_at"], last["id"])
 
 
+# ---- followup 分页 -------------------------------------------------
+def _fetch_followup_page(
+    cursor: tuple[str, str] | None,
+    customer_id: str | None,
+    q: str | None,
+    limit: int,
+) -> tuple[list[dict], bool]:
+    """取一页 followup。按 (meeting_date, id) DESC 排。
+
+    customer_id 为空 → 全局跟进记录列表。
+    q 匹配客户名 / background / summary / location。
+    """
+    sql = [
+        "SELECT",
+        "  r.id, r.customer_id, r.meeting_date, r.location,",
+        "  r.our_attendees, r.client_attendees,",
+        "  r.background, r.summary, r.photo_image_key,",
+        "  c.name AS customer_name",
+        "FROM followup_records r",
+        "JOIN customers c ON c.id = r.customer_id",
+        "WHERE 1=1",
+    ]
+    params: list = []
+
+    if customer_id:
+        sql.append("AND r.customer_id = ?")
+        params.append(customer_id)
+
+    if q:
+        sql.append(
+            "AND (c.name LIKE ? OR r.background LIKE ? "
+            "     OR r.summary LIKE ? OR r.location LIKE ?)"
+        )
+        kw = f"%{q}%"
+        params.extend([kw, kw, kw, kw])
+
+    if cursor is not None:
+        md, rid = cursor
+        sql.append(
+            "AND (r.meeting_date < ? "
+            "     OR (r.meeting_date = ? AND r.id < ?))"
+        )
+        params.extend([md, md, rid])
+
+    sql.append("ORDER BY r.meeting_date DESC, r.id DESC")
+    sql.append("LIMIT ?")
+    params.append(limit + 1)
+
+    conn = connect()
+    try:
+        rows = [dict(r) for r in conn.execute("\n".join(sql), params).fetchall()]
+    finally:
+        conn.close()
+
+    has_next = len(rows) > limit
+    return rows[:limit], has_next
+
+
+def _next_followup_cursor(rows: list[dict]) -> str:
+    last = rows[-1]
+    return _encode_cursor(last["meeting_date"], last["id"])
+
+
+def _decorate_followups(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for r in rows:
+        d = dict(r)
+        d["our_count"] = _count_json_list(d.get("our_attendees"))
+        d["client_count"] = _count_json_list(d.get("client_attendees"))
+        d["date_display"] = _format_meeting_date(d.get("meeting_date"))
+        d["title"] = d.get("summary") or _first_line(d.get("background") or "") or "—"
+        out.append(d)
+    return out
+
+
 # ---- 路由 ---------------------------------------------------------
 @app.get("/", include_in_schema=False)
 def root():
@@ -147,12 +225,14 @@ def customers_page(
     q: Optional[str] = Query(None),
 ):
     if tab == "records":
-        # 跟进记录 tab：followup_records 还没建，直接渲空态
+        rows, has_next = _fetch_followup_page(None, None, q, FOLLOWUP_PAGE_SIZE)
         return templates.TemplateResponse("customers.html", {
             "request": request,
             "tab": "records",
-            "rows": [],
-            "next_cursor": None,
+            "followups": _decorate_followups(rows),
+            "next_cursor": _next_followup_cursor(rows) if has_next else None,
+            "show_customer": True,
+            "customer_id": "",
             "owner": owner or "",
             "q": q or "",
         })
@@ -178,10 +258,17 @@ def customer_list_partial(
 ):
     """HTMX 片段：用于翻页（追加）或搜索（替换整个列表）。"""
     if tab == "records":
+        cur = _decode_cursor(cursor) if cursor else None
+        rows, has_next = _fetch_followup_page(cur, None, q, FOLLOWUP_PAGE_SIZE)
         return templates.TemplateResponse("_rows.html", {
-            "request": request, "tab": "records",
-            "rows": [], "next_cursor": None,
-            "owner": owner or "", "q": q or "",
+            "request": request,
+            "tab": "records",
+            "followups": _decorate_followups(rows),
+            "next_cursor": _next_followup_cursor(rows) if has_next else None,
+            "show_customer": True,
+            "customer_id": "",
+            "owner": owner or "",
+            "q": q or "",
         })
 
     cur = _decode_cursor(cursor) if cursor else None
@@ -193,6 +280,24 @@ def customer_list_partial(
         "next_cursor": _next_cursor(rows) if has_next else None,
         "owner": owner or "",
         "q": q or "",
+    })
+
+
+@app.get("/_p/customer-followups", response_class=HTMLResponse)
+def customer_followups_partial(
+    request: Request,
+    customer_id: str = Query(...),
+    cursor: str = Query(""),
+):
+    """客户详情 followup tab 的分页片段（追加）。"""
+    cur = _decode_cursor(cursor) if cursor else None
+    rows, has_next = _fetch_followup_page(cur, customer_id, None, FOLLOWUP_PAGE_SIZE)
+    return templates.TemplateResponse("_followup_rows.html", {
+        "request": request,
+        "followups": _decorate_followups(rows),
+        "next_cursor": _next_followup_cursor(rows) if has_next else None,
+        "customer_id": customer_id,
+        "show_customer": False,
     })
 
 
@@ -231,6 +336,38 @@ def _relative_time(ts: str | None) -> str:
     if sec < 86400 * 365:
         return f"{sec // (86400 * 30)} 个月前"
     return f"{sec // (86400 * 365)} 年前"
+
+
+def _count_json_list(raw: str | None) -> int:
+    if not raw:
+        return 0
+    try:
+        import json as _json
+        v = _json.loads(raw)
+        return len(v) if isinstance(v, list) else 0
+    except Exception:
+        return 0
+
+
+def _first_line(s: str, max_len: int = 40) -> str:
+    s = (s or "").strip()
+    if not s:
+        return ""
+    head = s.splitlines()[0].strip()
+    if len(head) > max_len:
+        head = head[:max_len] + "…"
+    return head
+
+
+def _format_meeting_date(s: str | None) -> str:
+    """'2026-04-20T14:30' → '4月20日 · 14:30'。"""
+    if not s:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(s)
+    except Exception:
+        return s[:16]
+    return f"{dt.month}月{dt.day}日 · {dt.strftime('%H:%M')}"
 
 
 def _format_amount(v) -> str | None:
@@ -276,6 +413,14 @@ def customer_detail(
         )
 
     c = dict(row)
+
+    followups: list[dict] = []
+    followup_next_cursor: str | None = None
+    if tab == "followup":
+        rows, has_next = _fetch_followup_page(None, customer_id, None, FOLLOWUP_PAGE_SIZE)
+        followups = _decorate_followups(rows)
+        followup_next_cursor = _next_followup_cursor(rows) if has_next else None
+
     return templates.TemplateResponse(
         "customer_detail.html",
         {
@@ -284,5 +429,7 @@ def customer_detail(
             "tab": tab,
             "recent_at_display": _relative_time(c.get("crm_recent_activity_at")),
             "order_amount_display": _format_amount(c.get("crm_total_order_amount")),
+            "followups": followups,
+            "followup_next_cursor": followup_next_cursor,
         },
     )

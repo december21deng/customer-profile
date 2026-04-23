@@ -28,14 +28,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.config import APP_ACCESS_PASSWORD, APP_SECRET_KEY, LARK_APP_ID, LARK_APP_SECRET
+
 logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "uid"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 天
 OPEN_PATHS = {"/login", "/logout", "/auth/lark", "/healthz"}
 
-LARK_APP_ID = os.environ.get("LARK_APP_ID", "")
-LARK_APP_SECRET = os.environ.get("LARK_APP_SECRET", "")
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "").rstrip("/")
 
 LARK_AUTHORIZE_URL = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
@@ -53,17 +53,11 @@ def _safe_next(n: str) -> str:
 
 
 def _serializer() -> URLSafeTimedSerializer:
-    secret = os.environ.get("APP_SECRET_KEY")
-    if not secret:
-        raise RuntimeError("APP_SECRET_KEY env var is required")
-    return URLSafeTimedSerializer(secret, salt="uid-cookie")
+    return URLSafeTimedSerializer(APP_SECRET_KEY, salt="uid-cookie")
 
 
 def _state_serializer() -> URLSafeTimedSerializer:
-    secret = os.environ.get("APP_SECRET_KEY")
-    if not secret:
-        raise RuntimeError("APP_SECRET_KEY env var is required")
-    return URLSafeTimedSerializer(secret, salt="lark-oauth-state")
+    return URLSafeTimedSerializer(APP_SECRET_KEY, salt="lark-oauth-state")
 
 
 def _sign_state(next_path: str) -> str:
@@ -172,8 +166,7 @@ def login_submit(
     password: str = Form(...),
     next: str = Form("/customers"),
 ):
-    expected = os.environ.get("APP_ACCESS_PASSWORD", "")
-    if not expected or not secrets.compare_digest(password, expected):
+    if not APP_ACCESS_PASSWORD or not secrets.compare_digest(password, APP_ACCESS_PASSWORD):
         return HTMLResponse(
             _LOGIN_HTML.format(next=next, err='<p class="err">密码错误</p>'),
             status_code=401,

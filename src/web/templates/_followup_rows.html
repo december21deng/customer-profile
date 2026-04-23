@@ -1,0 +1,67 @@
+{#
+  片段：一页 followup 卡片 + sentinel。
+  参数：
+    followups           - decorated list
+    next_cursor         - 下一页 cursor（无则 terminal）
+    show_customer       - True → 卡片展示客户名（全局 records tab）
+    customer_id         - 客户详情页分页用，next URL 需要带
+    q                   - 全局 records tab 搜索关键词
+#}
+{% if not followups and not next_cursor %}
+  {% if show_customer %}
+    <div class="empty">
+      {% if q %}
+        <div class="title">未找到 "{{ q }}"</div>
+        <div class="hint">换个关键词试试</div>
+      {% else %}
+        <div class="title">暂无跟进记录</div>
+        <div class="hint">去客户详情页点右下角 + 号添加</div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% else %}
+  {% for f in followups %}
+    <a class="followup-card" href="/followup/{{ f.id }}">
+      {% if show_customer %}
+        <div class="fc-customer">{{ f.customer_name }}</div>
+      {% endif %}
+      <div class="fc-date">{{ f.date_display }}</div>
+      <div class="fc-title">{{ f.title }}</div>
+      <div class="fc-meta">
+        {% if f.location %}
+          <span class="fc-meta-item">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            {{ f.location }}
+          </span>
+        {% endif %}
+        <span class="fc-meta-item">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+          </svg>
+          我方 {{ f.our_count }} · 客户 {{ f.client_count }}
+        </span>
+      </div>
+    </a>
+  {% endfor %}
+
+  {% if next_cursor %}
+    <div class="sentinel"
+         {% if show_customer %}
+           hx-get="/_p/customer-list?tab=records&cursor={{ next_cursor|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}"
+         {% else %}
+           hx-get="/_p/customer-followups?customer_id={{ customer_id|urlencode }}&cursor={{ next_cursor|urlencode }}"
+         {% endif %}
+         hx-trigger="revealed"
+         hx-swap="outerHTML"></div>
+  {% else %}
+    <div class="terminal"></div>
+  {% endif %}
+{% endif %}

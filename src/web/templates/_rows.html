@@ -3,10 +3,7 @@
   对齐设计文档 §3.4（卡片）、§3.7（+ 按钮）、§6（空态）、§10（无限滚动）。
 #}
 {% if tab == 'records' %}
-  <div class="empty">
-    <div class="title">暂无跟进记录</div>
-    <div class="hint">记录接入后将在此显示</div>
-  </div>
+  {% include "_followup_rows.html" with context %}
 {% elif not rows %}
   <div class="empty">
     {% if q %}
@@ -23,7 +20,7 @@
   {% for r in rows %}
     <a class="card" href="/customers/{{ r.id }}">
       <button class="plus-btn" type="button" aria-label="添加跟进记录"
-              onclick="event.preventDefault(); event.stopPropagation(); location.href='/customers/{{ r.id }}?action=add-record'">
+              onclick="event.preventDefault(); event.stopPropagation(); location.href='/customers/{{ r.id }}/followup/new'">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round">
           <path d="M12 5v14M5 12h14"/>

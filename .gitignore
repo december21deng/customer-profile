@@ -12,3 +12,11 @@ download.txt
 *.sqlite-*
 db/*.sqlite
 db/*.sqlite-*
+
+# 本地照片（dev 模式，APP_ENV=dev 时落盘）
+data/photos/
+
+# Wiki / Raw 产物：本地测试 + Fly 运行时数据，不入代码仓
+# Fly 上 /app/wiki → /data/wiki，/app/raw → /data/raw（symlink，start.sh 拉起）
+/wiki/
+/raw/

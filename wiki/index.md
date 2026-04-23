@@ -1,5 +1,13 @@
 # Knowledge Base Index
 
+## customers — 客户档案
+
+客户拜访纪要、合作历史、产品偏好与行动项的结构化沉淀。
+
+| Article | Summary | Updated |
+|---|---|---|
+| [UPE 客户档案](customers/upe.md) | 南非建材分销商，10年合作，主营PS/WPC/MDF；2026-04-21上海展厅会议产品选型及定价决策 | 2026-04-21 |
+
 ## seo-sem — SEO/SEM 与搜索优化
 
 | Article | Summary | Updated |

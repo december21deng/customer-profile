@@ -86,15 +86,25 @@ SCHEMA = [
     # =========================================================
     """
     CREATE TABLE IF NOT EXISTS followup_records (
-        id             TEXT PRIMARY KEY,
-        customer_id    TEXT NOT NULL,
-        owner_id       TEXT,
-        source_type    TEXT,
-        source_url     TEXT,
-        source_title   TEXT,
-        summary        TEXT,
-        meeting_date   TEXT NOT NULL,
-        created_at     TEXT NOT NULL
+        id                TEXT PRIMARY KEY,
+        customer_id       TEXT NOT NULL,
+        owner_id          TEXT,                   -- 创建人 open_id
+        meeting_date      TEXT NOT NULL,          -- ISO 'YYYY-MM-DDTHH:MM'
+        -- 手动录入字段（manual 必填，ingest 场景为 NULL）
+        location          TEXT,
+        our_attendees     TEXT,                   -- JSON: [{"open_id":..,"name":..}]
+        client_attendees  TEXT,                   -- 逗号/顿号分隔原文
+        background        TEXT,
+        minutes_doc_url   TEXT,                   -- 会议纪要 docx URL 原文
+        minutes_doc_id    TEXT,                   -- 从 URL 提取的 doc_id
+        transcript_url    TEXT,                   -- 妙记 URL（存档，AI ingest 时用）
+        photo_image_key   TEXT,                   -- Lark im/v1/images 的 image_key
+        -- 共用字段（ingest 也会用）
+        source_type       TEXT,                   -- 'manual' | 'chat' | 'meeting_link'
+        source_url        TEXT,
+        source_title      TEXT,
+        summary           TEXT,
+        created_at        TEXT NOT NULL
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_fr_customer_date "
@@ -114,4 +124,25 @@ SCHEMA = [
         rows_last     INTEGER NOT NULL DEFAULT 0
     )
     """,
+
+    # =========================================================
+    # Ingest Jobs（跟进记录 ingest pipeline 的状态）
+    # =========================================================
+    """
+    CREATE TABLE IF NOT EXISTS ingest_jobs (
+        record_id     TEXT PRIMARY KEY,          -- FK followup_records.id
+        customer_id   TEXT NOT NULL,
+        status        TEXT NOT NULL,             -- queued|fetching|ingesting|extracting|committing|done|failed
+        error         TEXT,                      -- 失败原因（最后一条）
+        attempts      INTEGER NOT NULL DEFAULT 0,
+        started_at    TEXT NOT NULL,             -- ISO 第一次进入 pipeline 的时间
+        updated_at    TEXT NOT NULL,             -- ISO 每次 set_status 更新
+        finished_at   TEXT,                      -- done/failed 时写入
+        cost_usd      REAL                       -- 本次 pipeline 估算成本（agent + extract）
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_status "
+    "ON ingest_jobs(status, updated_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_customer "
+    "ON ingest_jobs(customer_id, started_at DESC)",
 ]

@@ -11,6 +11,7 @@ primary_region = "sin"
 
 [env]
   APP_DB_PATH = "/data/app.sqlite"
+  # wiki/ raw/ 通过 start.sh 的 symlink 指到 /data，不再用 WIKI_DIR env
   CRM_SYNC_INTERVAL = "900"   # 秒；15 分钟一轮同步
   TZ = "Asia/Shanghai"
 

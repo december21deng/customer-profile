@@ -25,11 +25,29 @@ INGEST_INTERVAL_SECONDS = int(os.environ.get("INGEST_INTERVAL_SECONDS", "3600"))
 APP_DB_PATH = PROJECT_ROOT / os.environ.get("APP_DB_PATH", "db/app.sqlite")
 APP_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-# Wiki root directory (where Claude reads/writes customer knowledge)
+# 运行环境：dev 本地存照片，prod 上传到飞书
+APP_ENV = os.environ.get("APP_ENV", "dev").lower()
+
+# ---- 登录配置（按 APP_ENV 切，不走环境变量）--------------------
+# dev：密码登录（密码固定 "dev"）
+# prod：飞书 OAuth（APP_ACCESS_PASSWORD 留空 → 密码登录整个走不通）
+# APP_SECRET_KEY：cookie + OAuth state 的签名密钥
+if APP_ENV == "prod":
+    APP_ACCESS_PASSWORD = ""
+    APP_SECRET_KEY = "Tna-4Y14PDJq1XYNl-7qycpjy1RG5EOVq8ll5NiJfL8"
+else:
+    APP_ACCESS_PASSWORD = "dev"
+    APP_SECRET_KEY = "dev-only-not-for-prod"
+
+# 本地照片目录（dev 模式）
+PHOTO_DIR = PROJECT_ROOT / os.environ.get("PHOTO_DIR", "data/photos")
+PHOTO_DIR.mkdir(parents=True, exist_ok=True)
+
+# Wiki root：固定 PROJECT_ROOT/wiki。
+# Fly 上通过 start.sh 把 /app/wiki symlink 到 /data/wiki，代码层无感知。
 WIKI_DIR = PROJECT_ROOT / "wiki"
-WIKI_DIR.mkdir(exist_ok=True)
+WIKI_DIR.mkdir(parents=True, exist_ok=True)
 (WIKI_DIR / "customers").mkdir(exist_ok=True)
-(WIKI_DIR / "contacts").mkdir(exist_ok=True)
 
 # ByteHouse CRM
 BH_HOST = os.environ.get("BH_HOST", "")

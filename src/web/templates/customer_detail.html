@@ -78,38 +78,32 @@
     {% endif %}
   </section>
 {% else %}
-  <div class="followup-empty">
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="9" y1="14" x2="15" y2="14"/>
-      <line x1="9" y1="18" x2="13" y2="18"/>
-    </svg>
-    <div class="title">还没有跟进记录</div>
-    <div class="hint">点击右下角 + 按钮记录一次跟进</div>
-  </div>
+  {% if followups %}
+    <div class="followup-list">
+      {% set show_customer = false %}
+      {% set customer_id = c.id %}
+      {% set next_cursor = followup_next_cursor %}
+      {% include "_followup_rows.html" %}
+    </div>
+  {% else %}
+    <div class="followup-empty">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="9" y1="14" x2="15" y2="14"/>
+        <line x1="9" y1="18" x2="13" y2="18"/>
+      </svg>
+      <div class="title">还没有跟进记录</div>
+      <div class="hint">点击右下角 + 按钮记录一次跟进</div>
+    </div>
+  {% endif %}
 {% endif %}
 
-<button type="button" class="fab" onclick="showToast()" aria-label="新增跟进">
+<a href="/customers/{{ c.id }}/followup/new" class="fab" aria-label="新增跟进">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="2.5" stroke-linecap="round">
     <path d="M12 5v14M5 12h14"/>
   </svg>
-</button>
-
-<div id="toast" class="toast">跟进记录功能开发中</div>
-
-<script>
-  (function() {
-    var timer;
-    window.showToast = function(msg) {
-      var t = document.getElementById('toast');
-      if (msg) t.textContent = msg;
-      t.classList.add('show');
-      clearTimeout(timer);
-      timer = setTimeout(function() { t.classList.remove('show'); }, 1500);
-    };
-  })();
-</script>
+</a>
 {% endblock %}
