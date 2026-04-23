@@ -3,27 +3,36 @@
 # 任意一个挂了就整个容器退出，让 fly 重启（状态靠 /data volume 持久化）。
 set -euo pipefail
 
-# ---- /data 持久化初始化（仅 Fly 环境有 /data；本地 docker 跑没有则跳过）----
-if [ -d /data ]; then
-    echo "[start] preparing /data volume layout..."
-    mkdir -p /data/raw/customers /data/wiki/customers
+# ---- 以 root 跑 /data 初始化（volume 默认 root 所有），再切到 app 用户 ----
+# Claude CLI 的 --dangerously-skip-permissions 在 root 下会被拒绝，所以必须切。
+if [ "$(id -u)" = "0" ]; then
+    if [ -d /data ]; then
+        echo "[start] preparing /data volume layout (as root)..."
+        mkdir -p /data/raw/customers /data/wiki/customers
 
-    # /data/.git：wiki/raw 版本化仓库（独立于代码仓，不推远端）
-    if [ ! -d /data/.git ]; then
-        echo "[start] initializing /data/.git ..."
-        git -C /data init -q
-        git -C /data config user.email "bot@customer-profile-dec.fly.dev"
-        git -C /data config user.name  "ingest-bot"
-        git -C /data commit --allow-empty -m "init" -q
+        if [ ! -d /data/.git ]; then
+            echo "[start] initializing /data/.git ..."
+            git -C /data init -q
+            git -C /data config user.email "bot@customer-profile-dec.fly.dev"
+            git -C /data config user.name  "ingest-bot"
+            git -C /data commit --allow-empty -m "init" -q
+        fi
+
+        ln -sfn /data/raw  /app/raw
+        ln -sfn /data/wiki /app/wiki
+        echo "[start] /app/wiki -> $(readlink /app/wiki)"
+        echo "[start] /app/raw  -> $(readlink /app/raw)"
+
+        # /data volume 默认 root 所有，让 app 用户能读写
+        chown -R app:app /data
     fi
 
-    # symlink：让 agent SDK 的 cwd=/app 下能访问 wiki/ raw/
-    # -sfn：symbolic + force + no-dereference（避免把已有 symlink 当目录穿进去）
-    ln -sfn /data/raw  /app/raw
-    ln -sfn /data/wiki /app/wiki
-    echo "[start] /app/wiki -> $(readlink /app/wiki)"
-    echo "[start] /app/raw  -> $(readlink /app/raw)"
+    echo "[start] dropping root, re-exec as user 'app' via gosu..."
+    exec gosu app /app/start.sh "$@"
 fi
+
+# --- 下面这段以 app 用户身份运行 ---
+echo "[start] running as $(id -un) ($(id -u))"
 
 echo "[start] migrating schema..."
 python -m src.db.migrate

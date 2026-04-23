@@ -4,7 +4,7 @@
 # SSH 进机器：flyctl ssh console
 
 app = "customer-profile-dec"
-primary_region = "sin"
+primary_region = "sjc"
 
 [build]
   dockerfile = "Dockerfile.fly"
@@ -35,6 +35,6 @@ primary_region = "sin"
     path = "/healthz"
 
 [[vm]]
-  memory = "512mb"
+  memory = "2048mb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2

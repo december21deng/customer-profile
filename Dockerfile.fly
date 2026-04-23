@@ -14,18 +14,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsqlite3-0 \
         git \
         curl \
+        gosu \
         ca-certificates \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g @anthropic-ai/claude-code \
     && rm -rf /var/lib/apt/lists/* /root/.npm
 
+# 非 root 用户：Claude CLI 的 --dangerously-skip-permissions 在 root 下会被拒绝
+# start.sh 用 gosu 切换到这个用户
+RUN useradd -m -u 1000 -s /bin/bash app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x start.sh
+RUN chmod +x start.sh \
+    && chown -R app:app /app
 
 EXPOSE 8080
 
