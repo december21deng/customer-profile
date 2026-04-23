@@ -79,17 +79,18 @@
   {% endif %}
 </section>
 
-{# ============ 3. 会议详情：AI 结构化的纪要正文 ============ #}
+{# ============ 3. 会议详情：飞书纪要原文文字部分（画板除外）============ #}
 <section class="section">
   <h3>会议详情</h3>
-  {% if r.summary %}
-    <div class="section-body">{{ r.summary }}</div>
-  {% elif minutes_text %}
+  {% if minutes_text %}
     <div class="section-body">{{ minutes_text }}</div>
   {% elif minutes_error %}
     <div class="section-body muted">
       无法读取纪要内容（{{ minutes_error }}）。请点击下方按钮在飞书中查看。
     </div>
+  {% elif r.summary %}
+    {# 没有拉到纪要原文时，兜底展示 AI 总结，不至于完全空 #}
+    <div class="section-body">{{ r.summary }}</div>
   {% else %}
     <div class="section-body muted">—</div>
   {% endif %}
