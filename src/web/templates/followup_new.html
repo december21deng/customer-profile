@@ -586,48 +586,66 @@
       } catch (e) { return '刚才'; }
     }
 
-    (function tryRestoreDraft() {
+    function readDraft() {
       var raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      var draft;
-      try { draft = JSON.parse(raw); } catch (e) { localStorage.removeItem(DRAFT_KEY); return; }
-      // 过期清
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch (e) {
+        localStorage.removeItem(DRAFT_KEY);
+        return null;
+      }
+    }
+
+    function applyDraft(draft) {
+      document.getElementById('f-transcript').value = draft.transcript_url || '';
+      document.getElementById('f-minutes').value = draft.minutes_url || '';
+      document.getElementById('f-date').value = draft.meeting_date || '';
+      document.getElementById('f-loc').value = draft.location || '';
+      document.getElementById('f-bg').value = draft.background || '';
+      if (Array.isArray(draft.our_attendees)) {
+        ourState = draft.our_attendees.map(function(p) {
+          return { id: p.id, name: p.name, avatar: p.avatar || '' };
+        });
+        ourCtl.sync();
+      }
+      if (Array.isArray(draft.client_attendees)) {
+        clientState = draft.client_attendees.slice();
+        clientCtl.sync();
+      }
+      checkMinutes();
+      checkTranscript();
+    }
+
+    // 事件委托：无论 banner 何时显示，点击始终有效（修复飞书 webview 偶发失效）
+    var draftBanner = document.getElementById('draft-banner');
+    if (draftBanner) {
+      draftBanner.addEventListener('click', function(e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        e.preventDefault();
+        if (btn.id === 'draft-restore') {
+          var draft = readDraft();
+          if (draft) applyDraft(draft);
+          draftBanner.hidden = true;
+        } else if (btn.id === 'draft-discard') {
+          localStorage.removeItem(DRAFT_KEY);
+          draftBanner.hidden = true;
+        }
+      });
+    }
+
+    // 页面加载时：若本地有草稿且表单空，就显示 banner
+    (function maybeShowDraftBanner() {
+      var draft = readDraft();
+      if (!draft) return;
       if (draft._saved_at) {
         var age = (Date.now() - Date.parse(draft._saved_at)) / 86400000;
         if (age > DRAFT_TTL_DAYS) { localStorage.removeItem(DRAFT_KEY); return; }
       }
       if (!isFormEmpty()) return;  // 表单有 server 回填的 values，不覆盖
-
-      var banner = document.getElementById('draft-banner');
+      if (!draftBanner) return;
       var timeSpan = document.getElementById('draft-time');
-      // 前后加空格，读起来自然（中英夹杂）
       if (timeSpan) timeSpan.textContent = ' ' + friendlyTime(draft._saved_at) + ' ';
-      banner.hidden = false;
-
-      document.getElementById('draft-restore').addEventListener('click', function() {
-        document.getElementById('f-transcript').value = draft.transcript_url || '';
-        document.getElementById('f-minutes').value = draft.minutes_url || '';
-        document.getElementById('f-date').value = draft.meeting_date || '';
-        document.getElementById('f-loc').value = draft.location || '';
-        document.getElementById('f-bg').value = draft.background || '';
-        if (Array.isArray(draft.our_attendees)) {
-          ourState = draft.our_attendees.map(function(p) {
-            return { id: p.id, name: p.name, avatar: p.avatar || '' };
-          });
-          ourCtl.sync();
-        }
-        if (Array.isArray(draft.client_attendees)) {
-          clientState = draft.client_attendees.slice();
-          clientCtl.sync();
-        }
-        checkMinutes();
-        checkTranscript();
-        banner.hidden = true;
-      });
-      document.getElementById('draft-discard').addEventListener('click', function() {
-        localStorage.removeItem(DRAFT_KEY);
-        banner.hidden = true;
-      });
+      draftBanner.hidden = false;
     })();
 
     // -------- 防双击提交 + blur 触发未提交的 tag -----------
