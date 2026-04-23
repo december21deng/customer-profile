@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
@@ -29,6 +29,7 @@ from src.lark_client import (
     search_feishu_users,
     sign_jssdk,
 )
+from src.web.auth import require_csrf_form
 from src import photo_storage
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,7 @@ async def followup_submit(
     client_attendees: str = Form(...),   # JSON: ["name1", "name2"]
     background: str = Form(...),
     photo: UploadFile = File(...),
+    _csrf: None = Depends(require_csrf_form),
 ):
     customer = _fetch_customer(customer_id)
     if customer is None:

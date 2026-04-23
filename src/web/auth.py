@@ -108,16 +108,12 @@ def verify(token: str) -> Optional[str]:
         return None
 
 
-# 免 CSRF 校验的 POST 路径（登录自身显然不能要求 CSRF）。
-CSRF_EXEMPT_POSTS = {"/login"}
-
-
 class AuthMiddleware(BaseHTTPMiddleware):
     """所有路径默认需要 uid cookie；白名单路径 + /static/* 放行。
 
-    登录后还会：
-    - 给 request.state.csrf_token 注入一个 8h 有效的 CSRF token（模板里用）
-    - 对 state-changing 方法（POST/PUT/PATCH/DELETE）强制校验 csrf_token
+    注意：CSRF 校验**不**放在中间件里做 —— BaseHTTPMiddleware 里调
+    request.form() 会提前消费 body，下游 handler 拿不到 Form 字段。
+    改用 FastAPI 的 Depends（require_csrf_form / require_csrf_header）。
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -138,26 +134,31 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         request.state.uid = uid
         request.state.csrf_token = sign_csrf(uid)
-
-        # CSRF：state-changing 方法必须带有效 csrf_token
-        if request.method in ("POST", "PUT", "PATCH", "DELETE") and path not in CSRF_EXEMPT_POSTS:
-            supplied = request.headers.get("X-CSRF-Token", "")
-            if not supplied:
-                # 从表单里读（multipart / urlencoded）
-                try:
-                    form = await request.form()
-                    supplied = form.get("csrf_token", "") or ""
-                except Exception:
-                    supplied = ""
-            if not verify_csrf(supplied, uid):
-                logger.warning("csrf rejected: uid=%s path=%s method=%s", uid, path, request.method)
-                return HTMLResponse(
-                    "<p style='padding:40px;text-align:center;color:#E54545;font-family:-apple-system,sans-serif'>"
-                    "会话已过期或无效请求，请刷新页面重试。</p>",
-                    status_code=403,
-                )
-
         return await call_next(request)
+
+
+# ---- CSRF 校验（放在路由的 Depends 里用）--------------------------
+from fastapi import Depends, Form, HTTPException
+
+
+def require_csrf_form(
+    request: Request,
+    csrf_token: str = Form(...),
+) -> None:
+    """校验 multipart/urlencoded 表单里的 csrf_token 字段。"""
+    uid = getattr(request.state, "uid", None)
+    if not uid or not verify_csrf(csrf_token, uid):
+        logger.warning("csrf form rejected: uid=%s path=%s", uid, request.url.path)
+        raise HTTPException(status_code=403, detail="csrf_invalid")
+
+
+def require_csrf_header(request: Request) -> None:
+    """校验 X-CSRF-Token header（用于 JSON / fetch 接口）。"""
+    uid = getattr(request.state, "uid", None)
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not uid or not verify_csrf(supplied, uid):
+        logger.warning("csrf header rejected: uid=%s path=%s", uid, request.url.path)
+        raise HTTPException(status_code=403, detail="csrf_invalid")
 
 
 router = APIRouter()
