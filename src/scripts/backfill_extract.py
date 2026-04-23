@@ -101,8 +101,9 @@ def main():
 
         title = _clean_title(result.get("meeting_title") or "")
         progress = _clean_progress(result.get("progress_line") or "")
-        if not title and not progress:
-            log.warning("%s: extract returned both empty, skipping write", rid)
+        summary = (result.get("record_summary") or "").strip()
+        if not title and not progress and not summary:
+            log.warning("%s: extract returned all empty, skipping write", rid)
             skipped += 1
             continue
 
@@ -110,15 +111,16 @@ def main():
         try:
             conn.execute(
                 "UPDATE followup_records "
-                "SET meeting_title = ?, progress_line = ? "
+                "SET meeting_title = ?, progress_line = ?, summary = ? "
                 "WHERE id = ?",
-                (title, progress, rid),
+                (title, progress, summary, rid),
             )
             conn.commit()
         finally:
             conn.close()
 
-        log.info("ok %s: title=%r progress=%r", rid, title, progress)
+        log.info("ok %s: title=%r progress=%r summary=%d chars",
+                 rid, title, progress, len(summary))
         ok += 1
 
     log.info("done  ok=%d skipped=%d failed=%d", ok, skipped, failed)

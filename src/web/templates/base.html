@@ -359,23 +359,75 @@
   }
   .section {
     background: var(--surface);
-    border-radius: 16px;
-    padding: 16px 20px;
+    border-radius: 12px;
+    padding: 18px 20px;
     margin-bottom: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid rgba(31, 35, 41, 0.06);
   }
   .section h3 {
     font-size: 14px; font-weight: 600;
     color: var(--neutral-700);
-    margin: 0 0 10px 0;
+    margin: 0 0 12px 0;
+    letter-spacing: -0.1px;
   }
+  /* kv：迷你表格布局，label 72px 固定灰，value 自适应黑 */
   .kv {
-    display: flex; justify-content: space-between;
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    column-gap: 16px;
     padding: 7px 0;
     font-size: 14px;
+    align-items: baseline;
   }
-  .kv .k { color: var(--neutral-400); }
-  .kv .v { color: var(--neutral-700); }
+  .kv .k {
+    color: var(--neutral-400);
+    font-size: 13px;
+    font-weight: normal;
+  }
+  .kv .v {
+    color: var(--neutral-900);
+    min-width: 0;
+  }
+  .kv .v.muted { color: var(--neutral-300); }
+  .kv-section { padding: 14px 20px; }
+  .kv-section .kv:first-child { padding-top: 4px; }
+  .kv-section .kv:last-child { padding-bottom: 4px; }
+
+  /* "参会人员" 用 stacked 布局：label 顶部对齐，value 多行 chip */
+  .kv-stacked { align-items: start; }
+  .kv-stacked .k { padding-top: 2px; }
+  .v-attendees { display: flex; flex-direction: column; gap: 8px; }
+  .v-sub {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    column-gap: 10px;
+    align-items: baseline;
+  }
+  .v-sub-k {
+    color: var(--neutral-500);
+    font-size: 13px;
+  }
+  .v-sub-v {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    min-width: 0;
+  }
+  .v-sub-v .muted { color: var(--neutral-300); }
+
+  /* 会议总结图片画廊（Phase 2 填充） */
+  .fd-image-gallery {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .fd-image-gallery img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--neutral-200);
+  }
+
+  /* 打开原文 / 打开妙记 的链接按钮行 */
+  .fd-link-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 12px;
+  }
 
   /* ============ detail: tag chips ============ */
   .tag-chips {
@@ -433,7 +485,8 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .section-body.empty { color: var(--neutral-300); }
+  .section-body.empty,
+  .section-body.muted { color: var(--neutral-400); }
   .section-hint {
     font-size: 13px;
     color: var(--neutral-400);

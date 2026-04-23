@@ -3,103 +3,132 @@
 {% block body %}
 <a href="/customers/{{ r.customer_id }}?tab=followup" class="detail-back">返回</a>
 
-<h1 class="detail-title">{{ date_display }}</h1>
-{% if r.summary %}
-  <div class="fd-subtitle">{{ r.summary }}</div>
-{% endif %}
+<div class="detail-header">
+  <h1 class="detail-title">{{ r.customer_name }}</h1>
+</div>
 
-{% if r.photo_image_key %}
-  <div class="fd-photo">
-    <img src="/api/image/{{ r.photo_image_key }}" alt="合照">
+{# ============ 1. 会议主题 / 参会人员 / 会议时间 / 地点（kv 表）============ #}
+<section class="section kv-section">
+  <div class="kv">
+    <span class="k">会议主题</span>
+    <span class="v">{{ r.meeting_title or '—' }}</span>
   </div>
-{% endif %}
 
-<section class="section">
-  <h3>会议信息</h3>
-  <div class="kv"><span class="k">客户</span><span class="v">{{ r.customer_name }}</span></div>
-  <div class="kv"><span class="k">时间</span><span class="v">{{ date_display }}</span></div>
-  <div class="kv"><span class="k">地点</span><span class="v">{{ r.location or '—' }}</span></div>
-  <div class="kv"><span class="k">创建人</span><span class="v">{{ owner_name }}</span></div>
-</section>
-
-<section class="section">
-  <h3>参会人员</h3>
-  <div class="fd-attendee-row">
-    <span class="k">我方</span>
-    <div class="v">
-      {% if our_list %}
-        {% for p in our_list %}
-          <span class="chip-tag">
-            <span class="chip-avatar">{{ (p.name or '?')[:1] }}</span>
-            <span>{{ p.name or p.open_id or '—' }}</span>
-          </span>
-        {% endfor %}
-      {% else %}
-        <span class="section-hint">—</span>
-      {% endif %}
+  <div class="kv kv-stacked">
+    <span class="k">参会人员</span>
+    <div class="v v-attendees">
+      <div class="v-sub">
+        <span class="v-sub-k">客户方</span>
+        <span class="v-sub-v">
+          {% if client_list %}
+            {% for name in client_list %}
+              <span class="chip-tag"><span>{{ name }}</span></span>
+            {% endfor %}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="v-sub">
+        <span class="v-sub-k">INTCO</span>
+        <span class="v-sub-v">
+          {% if our_list %}
+            {% for p in our_list %}
+              <span class="chip-tag">
+                <span class="chip-avatar">{{ (p.name or '?')[:1] }}</span>
+                <span>{{ p.name or p.open_id or '—' }}</span>
+              </span>
+            {% endfor %}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </span>
+      </div>
     </div>
   </div>
-  <div class="fd-attendee-row">
-    <span class="k">客户</span>
-    <div class="v">
-      {% if client_list %}
-        {% for name in client_list %}
-          <span class="chip-tag"><span>{{ name }}</span></span>
-        {% endfor %}
-      {% else %}
-        <span class="section-hint">—</span>
-      {% endif %}
-    </div>
+
+  <div class="kv">
+    <span class="k">会议时间</span>
+    <span class="v">{{ date_display }}</span>
+  </div>
+
+  {% if r.location %}
+  <div class="kv">
+    <span class="k">地点</span>
+    <span class="v">{{ r.location }}</span>
+  </div>
+  {% endif %}
+
+  <div class="kv">
+    <span class="k">记录人</span>
+    <span class="v">{{ owner_name }}</span>
   </div>
 </section>
 
+{# ============ 2. 会议总结：画板/妙记图片（Phase 2 后自动填入）============ #}
 <section class="section">
-  <h3>会议背景</h3>
-  {% if r.background %}
-    <div class="section-body">{{ r.background }}</div>
+  <h3>会议总结</h3>
+  {% if r.minutes_images %}
+    <div class="fd-image-gallery">
+      {# Phase 2 到位后这里遍历 image_keys；目前占位 #}
+    </div>
   {% else %}
-    <div class="section-hint">—</div>
+    <div class="section-hint">
+      待 AI 从飞书文档中提取画板/妙记图片（权限审批后自动生效）。
+    </div>
   {% endif %}
 </section>
 
+{# ============ 3. 会议详情：AI 结构化的纪要正文 ============ #}
 <section class="section">
-  <h3>会议纪要</h3>
-  {% if minutes_text %}
-    <div class="fd-minutes-body">{{ minutes_text }}</div>
+  <h3>会议详情</h3>
+  {% if r.summary %}
+    <div class="section-body">{{ r.summary }}</div>
+  {% elif minutes_text %}
+    <div class="section-body">{{ minutes_text }}</div>
   {% elif minutes_error %}
-    <div class="fd-minutes-body muted">
+    <div class="section-body muted">
       无法读取纪要内容（{{ minutes_error }}）。请点击下方按钮在飞书中查看。
     </div>
   {% else %}
-    <div class="fd-minutes-body muted">纪要内容为空</div>
+    <div class="section-body muted">—</div>
   {% endif %}
-  {% if r.minutes_doc_url %}
-    <a class="fd-link-btn" href="{{ r.minutes_doc_url }}" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-           stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-        <polyline points="15 3 21 3 21 9"/>
-        <line x1="10" y1="14" x2="21" y2="3"/>
-      </svg>
-      打开会议纪要原文
-    </a>
-  {% endif %}
+
+  <div class="fd-link-row">
+    {% if r.minutes_doc_url %}
+      <a class="fd-link-btn" href="{{ r.minutes_doc_url }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/>
+          <line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+        打开原文
+      </a>
+    {% endif %}
+    {% if r.transcript_url %}
+      <a class="fd-link-btn" href="{{ r.transcript_url }}" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/>
+          <line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+        打开妙记
+      </a>
+    {% endif %}
+  </div>
 </section>
 
-{% if r.transcript_url %}
+{# ============ 4. 会议合照（如果有，放最后）============ #}
+{% if r.photo_image_key %}
 <section class="section">
-  <h3>妙记</h3>
-  <a class="fd-link-btn" href="{{ r.transcript_url }}" target="_blank" rel="noopener">
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-         stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-      <polyline points="15 3 21 3 21 9"/>
-      <line x1="10" y1="14" x2="21" y2="3"/>
-    </svg>
-    打开妙记
-  </a>
+  <h3>会议合照</h3>
+  <div class="fd-photo">
+    <img src="/api/image/{{ r.photo_image_key }}" alt="合照">
+  </div>
 </section>
 {% endif %}
 {% endblock %}
