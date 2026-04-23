@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import re
 import secrets
 import time
 
@@ -265,8 +266,62 @@ def fetch_docx_raw(doc_id: str) -> tuple[str | None, str | None]:
         logger.error("docx raw_content failed: code=%s msg=%s", data.get("code"), data.get("msg"))
         return None, data.get("msg") or f"code_{data.get('code')}"
     content = (data.get("data") or {}).get("content") or ""
+    content = _clean_minutes_text(content)
     _docx_raw_cache[doc_id] = (content, now + _DOCX_RAW_TTL)
     return content, None
+
+
+# 孤立一行的图片 hash：32+ 位 hex + 常见图片扩展名
+_NOISE_IMAGE_LINE = re.compile(
+    r"^\s*[0-9a-fA-F]{24,}\.(jpg|jpeg|png|gif|webp|bmp|svg)\s*$",
+    re.IGNORECASE,
+)
+# 从这些标签开始到文末全部砍掉（都是妙记的 meta 尾巴）
+_TAIL_CUT_MARKERS = ("客户合影", "客户合照", "会议合影", "会议合照", "相关链接")
+
+
+def _clean_minutes_text(raw: str) -> str:
+    """清理飞书智能纪要 raw_content 里的尾部噪音：
+    - "客户合影" / "相关链接" 这类元信息 section 全砍
+    - 孤立的图片 hash 行去掉
+    - AI 免责声明行去掉
+    - 连续空行压缩为 1 行
+    """
+    if not raw:
+        return raw or ""
+
+    # 1. 尾部元信息 section 整砍
+    cut = len(raw)
+    for marker in _TAIL_CUT_MARKERS:
+        idx = raw.find(marker)
+        if idx >= 0 and idx < cut:
+            cut = idx
+    raw = raw[:cut].rstrip()
+
+    # 2. 按行过滤
+    lines = raw.splitlines()
+    out: list[str] = []
+    for line in lines:
+        s = line.strip()
+        if _NOISE_IMAGE_LINE.match(s):
+            continue
+        if "智能纪要由 AI 生成" in s:
+            continue
+        out.append(line)
+
+    # 3. 连续空行合一
+    result: list[str] = []
+    blank = 0
+    for line in out:
+        if not line.strip():
+            blank += 1
+            if blank <= 1:
+                result.append("")
+        else:
+            blank = 0
+            result.append(line)
+
+    return "\n".join(result).rstrip()
 
 
 # ------------- 用户身份 token（OAuth 拿的 user_access_token）---------
