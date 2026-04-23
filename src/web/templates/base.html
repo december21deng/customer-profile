@@ -179,13 +179,14 @@
     transition: background .12s ease;
     overflow: hidden;
   }
-  /* 左侧蓝色 accent 竖条（保留 —— 这是参考图的核心视觉锚点）*/
+  /* 左侧蓝色 accent 竖条：只跟"客户名"一行等高（短 bar，更克制）*/
   .card::before {
     content: "";
     position: absolute;
-    top: 18px; bottom: 18px;
+    top: 22px;                /* 对齐 name 文字顶部：card 18px padding + 4px 字体 metrics */
     left: 10px;
     width: 3px;
+    height: 18px;             /* ≈ name 文字实际高度（16px font × 1.4 line-height 的可视部分）*/
     background: var(--blue-600);
     border-radius: 2px;
   }
