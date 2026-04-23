@@ -36,6 +36,9 @@ def _run_column_migrations(conn: sqlite3.Connection) -> int:
         ("minutes_doc_id", "TEXT"),
         ("transcript_url", "TEXT"),
         ("photo_image_key", "TEXT"),
+        # v0.4: 列表 item 新加的两个 AI 短字段
+        ("meeting_title", "TEXT NOT NULL DEFAULT ''"),
+        ("progress_line", "TEXT NOT NULL DEFAULT ''"),
     ]:
         if _add_col_if_missing(conn, "followup_records", col, decl):
             added += 1

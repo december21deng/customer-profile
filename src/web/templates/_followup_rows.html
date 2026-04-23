@@ -26,7 +26,14 @@
         <div class="fc-customer">{{ f.customer_name }}</div>
       {% endif %}
       <div class="fc-date">{{ f.date_display }}</div>
-      <div class="fc-title">{{ f.title }}</div>
+      <div class="fu-kv">
+        <span class="fu-k">会议主题</span>
+        <span class="fu-v">{{ f.meeting_title or '—' }}</span>
+      </div>
+      <div class="fu-kv">
+        <span class="fu-k">一句话进展</span>
+        <span class="fu-v">{{ f.progress_line or '—' }}</span>
+      </div>
       <div class="fc-meta">
         {% if f.location %}
           <span class="fc-meta-item">

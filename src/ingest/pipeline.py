@@ -203,6 +203,7 @@ _EXTRACT_TOOL = {
         "type": "object",
         "required": [
             "summary", "journey_stage", "record_summary",
+            "meeting_title", "progress_line",
             "next_actions", "contacts_delta",
         ],
         "properties": {
@@ -218,7 +219,45 @@ _EXTRACT_TOOL = {
             },
             "record_summary": {
                 "type": "string",
-                "description": "仅针对本次 raw 纪要的 2-4 句浓缩：谁参与、核心决策、下一步。",
+                "description": "仅针对本次 raw 纪要的 2-4 句浓缩：谁参与、核心决策、下一步。"
+                               "详情页会显示这个字段。",
+            },
+            "meeting_title": {
+                "type": "string",
+                "maxLength": 20,
+                "description": (
+                    "6-14 字的会议主题短语，动宾或名词结构。"
+                    "显示在 CRM 列表每条记录的「会议主题」标签右侧。"
+                    "硬规则："
+                    "(1) 不含客户名（客户名已经在卡片头部显示）；"
+                    "(2) 不含日期、时长；"
+                    "(3) 不以'会议''纪要''沟通''交流'收尾；"
+                    "(4) 不要抄文档标题或复述 record_summary 开头。"
+                    "正例：'供应链合作探索'、'产品性能需求澄清'、"
+                    "'合同条款二次谈判'、'样品实测结果复盘'、'2026 年度采购规划'。"
+                    "反例：'会议纪要'(废话)、'ABENA 的会议'(带客户名)、"
+                    "'双方友好会谈'(套话)、'产品讨论'(太泛)。"
+                ),
+            },
+            "progress_line": {
+                "type": "string",
+                "maxLength": 80,
+                "description": (
+                    "20-40 字的一句话进展。"
+                    "显示在 CRM 列表每条记录的「一句话进展」标签右侧，"
+                    "让销售 1 秒判断这个客户推进到哪一步。"
+                    "必须包含以下四类之一："
+                    "(a) 明确结论（'双方同意/客户拒绝/达成共识'）；"
+                    "(b) 可验证的下一步（'下周提供报价/三天内发样/本月签合同'）；"
+                    "(c) 具体阻碍（'客户对 X 有异议/待法务审合同/缺 Y 参数'）；"
+                    "(d) 金额/数量/时间里程碑（'首单 50 万/1000 件/Q3 落地'）。"
+                    "正例：'双方确认合作意向，下周提供 BOM 报价'、"
+                    "'客户对防火等级存疑，需补 B1 级检测报告'、"
+                    "'达成首单意向 50 万，待客户法务审合同'。"
+                    "反例：'双方进行了沟通'、'气氛融洽'、"
+                    "'交换了名片'、'深入讨论了多个方面'——一律禁止。"
+                    "纪要信息不足时可写'纪要信息不足，需补会议要点'，不准留空。"
+                ),
             },
             "next_actions": {
                 "type": "array",
@@ -252,6 +291,26 @@ _EXTRACT_TOOL = {
         },
     },
 }
+
+
+_TITLE_TRIM_SUFFIXES = ("会议纪要", "拜访纪要", "纪要", "会议", "沟通", "交流", "会谈")
+
+
+def _clean_title(t: str) -> str:
+    """清洗 AI 生成的 meeting_title：去空白、剥尾巴、限长。"""
+    t = (t or "").strip()
+    changed = True
+    while changed and t:
+        changed = False
+        for suffix in _TITLE_TRIM_SUFFIXES:
+            if t.endswith(suffix) and len(t) > len(suffix):
+                t = t[: -len(suffix)].rstrip("·-—— ：: ")
+                changed = True
+    return t[:20]
+
+
+def _clean_progress(p: str) -> str:
+    return (p or "").strip()[:80]
 
 _EXTRACT_SYSTEM = (
     "你是一个结构化提取助手。输入是一篇客户 wiki 文章（已由上游 LLM 沉淀）"
@@ -315,8 +374,15 @@ def _commit_sql(
     try:
         with transaction(conn):
             conn.execute(
-                "UPDATE followup_records SET summary = ? WHERE id = ?",
-                (extract_result.get("record_summary") or "", record_id),
+                "UPDATE followup_records "
+                "SET summary = ?, meeting_title = ?, progress_line = ? "
+                "WHERE id = ?",
+                (
+                    extract_result.get("record_summary") or "",
+                    _clean_title(extract_result.get("meeting_title") or ""),
+                    _clean_progress(extract_result.get("progress_line") or ""),
+                    record_id,
+                ),
             )
             conn.execute(
                 """

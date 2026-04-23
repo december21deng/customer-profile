@@ -170,6 +170,7 @@ def _fetch_followup_page(
         "  r.id, r.customer_id, r.meeting_date, r.location,",
         "  r.our_attendees, r.client_attendees,",
         "  r.background, r.summary, r.photo_image_key,",
+        "  r.meeting_title, r.progress_line,",
         "  c.name AS customer_name",
         "FROM followup_records r",
         "JOIN customers c ON c.id = r.customer_id",

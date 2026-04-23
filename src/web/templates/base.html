@@ -434,11 +434,34 @@
   .followup-card .fc-meta {
     display: flex; flex-wrap: wrap;
     gap: 12px;
+    margin-top: 8px;
     font-size: 12px;
     color: var(--neutral-500);
   }
   .followup-card .fc-meta-item {
     display: inline-flex; align-items: center; gap: 4px;
+  }
+  /* 列表里「会议主题」「一句话进展」的 kv 两行 —— 迷你表格对齐 */
+  .followup-card .fu-kv {
+    display: flex;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.55;
+    min-width: 0;
+  }
+  .followup-card .fu-kv + .fu-kv { margin-top: 2px; }
+  .followup-card .fu-k {
+    flex: 0 0 72px;
+    color: var(--neutral-400);
+    font-size: 13px;
+  }
+  .followup-card .fu-v {
+    flex: 1;
+    min-width: 0;
+    color: var(--neutral-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* ============ followup detail ============ */
