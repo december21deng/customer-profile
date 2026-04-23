@@ -24,6 +24,38 @@ from src.crm import sync_account, sync_stages, sync_users, sync_valuelist
 INTERVAL = int(os.environ.get("CRM_SYNC_INTERVAL", str(15 * 60)))  # 默认 15 分钟
 
 
+# Sentry 可选：scheduler 是独立进程，单独 init 一次（和 web app 不共享）
+_SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if _SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            environment=os.environ.get("APP_ENV", "dev"),
+            release=os.environ.get("FLY_MACHINE_VERSION") or os.environ.get("GIT_SHA", "unknown"),
+            traces_sample_rate=0.0,
+            profiles_sample_rate=0.0,
+            send_default_pii=False,
+        )
+        print(f"[scheduler] sentry initialized (env={os.environ.get('APP_ENV', 'dev')})")
+    except Exception as _e:
+        print(f"[scheduler] sentry init failed: {_e!r}", file=sys.stderr)
+
+
+def _report(exc: BaseException, tag: str) -> None:
+    """把异常打到 Sentry（如果配了），并加上 crm step 标签。"""
+    try:
+        import sentry_sdk
+    except ImportError:
+        return
+    if not sentry_sdk.get_client().is_active():
+        return
+    with sentry_sdk.push_scope() as scope:
+        scope.set_tag("component", "crm_sync")
+        scope.set_tag("step", tag)
+        sentry_sdk.capture_exception(exc)
+
+
 def sync_all() -> None:
     """跑一轮。出错不让整轮挂，记录后继续下一个 step。"""
     t0 = time.time()
@@ -39,6 +71,7 @@ def sync_all() -> None:
             print(f"[sync-all]   {name}: {res}")
         except Exception as e:
             print(f"[sync-all]   {name} FAIL: {e!r}", file=sys.stderr)
+            _report(e, name)
     print(f"[sync-all] done  {time.time() - t0:.1f}s")
 
 
