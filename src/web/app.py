@@ -86,16 +86,75 @@ def _decode_cursor(s: str) -> tuple[str, str] | None:
 
 
 # ---- 数据层 -------------------------------------------------------
+
+# 当前支持的排序方式。未知值回退到 "viewed"。
+SortMode = Literal["viewed", "mine"]
+VALID_SORTS: set[str] = {"viewed", "mine"}
+DEFAULT_SORT: str = "viewed"
+
+
+def _normalize_sort(s: str | None) -> str:
+    return s if s in VALID_SORTS else DEFAULT_SORT
+
+
+def _count_user_owned_customers(uid: str) -> int:
+    """返回当前用户名下的客户数（通过 crm_users.feishu_open_id 映射）。
+
+    映射没建 / uid 空 / 同名未 map → 返回 0（触发 "我的客户" 的兜底分支）。
+    """
+    if not uid:
+        return 0
+    conn = connect()
+    try:
+        r = conn.execute(
+            "SELECT COUNT(*) AS n FROM customers c "
+            "JOIN crm_users u ON u.id = c.crm_owner_id "
+            "WHERE c.crm_is_deleted = 0 AND u.feishu_open_id = ?",
+            (uid,),
+        ).fetchone()
+        return int(r["n"] if r else 0)
+    finally:
+        conn.close()
+
+
 def _fetch_page(
     cursor: tuple[str, str] | None,
     owner: str | None,
     q: str | None,
     limit: int,
-) -> list[dict]:
+    sort: str = DEFAULT_SORT,
+    uid: str = "",
+) -> tuple[list[dict], bool]:
+    """取一页客户。返回 (rows, has_next)。
+
+    sort 语义：
+    - "viewed"（默认）：我看过的浮顶（按 view 时间），未看过的按 CRM 更新时间
+    - "mine"：我名下客户按最近跟进时间排；名下 0 个 → 全量按最近跟进（管理者兜底）
     """
-    取一页客户。按 (crm_updated_at, id) DESC 排（对齐设计文档 §5）。
-    返回字段命名对齐模板消费。
-    """
+    sort = _normalize_sort(sort)
+
+    # ---- 决定 sort_expr 和 JOIN ----
+    if sort == "viewed":
+        # 个人 view 表 LEFT JOIN，COALESCE 兜底 updated_at
+        view_join = ("LEFT JOIN user_customer_views uv "
+                     "ON uv.user_id = ? AND uv.customer_id = c.id")
+        view_params = [uid or ""]
+        sort_expr = "COALESCE(uv.last_viewed_at, c.crm_updated_at)"
+        mine_filter = ""
+        mine_params: list = []
+    else:  # "mine"
+        view_join = ""
+        view_params = []
+        sort_expr = "COALESCE(c.crm_recent_activity_at, '1970-01-01')"
+        # "我名下" → 有 feishu_open_id 映射且名下 ≥1 个 → 过滤；否则不过滤（兜底）
+        if uid and _count_user_owned_customers(uid) > 0:
+            mine_filter = ("AND c.crm_owner_id IN "
+                           "(SELECT id FROM crm_users WHERE feishu_open_id = ?)")
+            mine_params = [uid]
+        else:
+            mine_filter = ""
+            mine_params = []
+
     sql = [
         "SELECT",
         "  c.id, c.name,",
@@ -107,15 +166,19 @@ def _fetch_page(
         "  c.crm_updated_at    AS updated_at,",
         "  u.display_name      AS owner_name,",
         "  v.label             AS industry,",
+        f" {sort_expr}          AS sort_key,",
         "  (SELECT COUNT(*) FROM followup_records r",
         "     WHERE r.customer_id = c.id",
         "       AND r.meeting_date >= date('now','-30 days')) AS recent_count",
         "FROM customers c",
         "LEFT JOIN crm_users u ON u.id = c.crm_owner_id",
         "LEFT JOIN crm_value_list v ON v.field='行业' AND v.id = CAST(c.crm_industry_id AS TEXT)",
-        "WHERE c.crm_is_deleted = 0",
     ]
-    params: list = []
+    if view_join:
+        sql.append(view_join)
+    sql.append("WHERE c.crm_is_deleted = 0")
+
+    params: list = list(view_params)  # LEFT JOIN 的参数要在 WHERE 前
 
     if owner:
         sql.append("AND c.crm_owner_id = ?")
@@ -125,15 +188,19 @@ def _fetch_page(
         sql.append("AND c.name LIKE ?")
         params.append(f"%{q}%")
 
+    if mine_filter:
+        sql.append(mine_filter)
+        params.extend(mine_params)
+
     if cursor is not None:
         ts, cid = cursor
         sql.append(
-            "AND (c.crm_updated_at < ? "
-            "     OR (c.crm_updated_at = ? AND c.id < ?))"
+            f"AND ({sort_expr} < ? "
+            f"     OR ({sort_expr} = ? AND c.id < ?))"
         )
         params.extend([ts, ts, cid])
 
-    sql.append("ORDER BY c.crm_updated_at DESC, c.id DESC")
+    sql.append(f"ORDER BY {sort_expr} DESC, c.id DESC")
     sql.append("LIMIT ?")
     params.append(limit + 1)  # +1 判断是否有下一页
 
@@ -150,7 +217,8 @@ def _fetch_page(
 
 def _next_cursor(rows: list[dict]) -> str:
     last = rows[-1]
-    return _encode_cursor(last["updated_at"], last["id"])
+    # sort_key 是 SELECT 里按当前 sort 计算出来的值，encode 它而不是固定 updated_at
+    return _encode_cursor(last.get("sort_key") or last["updated_at"] or "", last["id"])
 
 
 # ---- followup 分页 -------------------------------------------------
@@ -247,7 +315,11 @@ def customers_page(
     tab: Tab = Query("customers"),
     owner: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
+    sort: str = Query(DEFAULT_SORT),
 ):
+    uid = getattr(request.state, "uid", "") or ""
+    sort = _normalize_sort(sort)
+
     if tab == "records":
         rows, has_next = _fetch_followup_page(None, None, q, FOLLOWUP_PAGE_SIZE)
         return templates.TemplateResponse("customers.html", {
@@ -259,9 +331,10 @@ def customers_page(
             "customer_id": "",
             "owner": owner or "",
             "q": q or "",
+            "sort": sort,
         })
 
-    rows, has_next = _fetch_page(None, owner, q, PAGE_SIZE)
+    rows, has_next = _fetch_page(None, owner, q, PAGE_SIZE, sort=sort, uid=uid)
     return templates.TemplateResponse("customers.html", {
         "request": request,
         "tab": "customers",
@@ -269,6 +342,7 @@ def customers_page(
         "next_cursor": _next_cursor(rows) if has_next else None,
         "owner": owner or "",
         "q": q or "",
+        "sort": sort,
     })
 
 
@@ -279,8 +353,12 @@ def customer_list_partial(
     cursor: str = Query(""),
     owner: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
+    sort: str = Query(DEFAULT_SORT),
 ):
     """HTMX 片段：用于翻页（追加）或搜索（替换整个列表）。"""
+    uid = getattr(request.state, "uid", "") or ""
+    sort = _normalize_sort(sort)
+
     if tab == "records":
         cur = _decode_cursor(cursor) if cursor else None
         rows, has_next = _fetch_followup_page(cur, None, q, FOLLOWUP_PAGE_SIZE)
@@ -293,10 +371,11 @@ def customer_list_partial(
             "customer_id": "",
             "owner": owner or "",
             "q": q or "",
+            "sort": sort,
         })
 
     cur = _decode_cursor(cursor) if cursor else None
-    rows, has_next = _fetch_page(cur, owner, q, PAGE_SIZE)
+    rows, has_next = _fetch_page(cur, owner, q, PAGE_SIZE, sort=sort, uid=uid)
     return templates.TemplateResponse("_rows.html", {
         "request": request,
         "tab": "customers",
@@ -304,6 +383,7 @@ def customer_list_partial(
         "next_cursor": _next_cursor(rows) if has_next else None,
         "owner": owner or "",
         "q": q or "",
+        "sort": sort,
     })
 
 
@@ -407,6 +487,30 @@ def _format_amount(v) -> str | None:
     return f"¥{n:,.0f}"
 
 
+def _track_view(uid: str, customer_id: str) -> None:
+    """记录一次"查看"。失败静默，不让详情页因为记 view 失败而挂。"""
+    if not uid or not customer_id:
+        return
+    now = datetime.now().isoformat(timespec="seconds")
+    try:
+        conn = connect()
+        try:
+            conn.execute(
+                "INSERT INTO user_customer_views(user_id, customer_id, last_viewed_at, view_count) "
+                "VALUES(?, ?, ?, 1) "
+                "ON CONFLICT(user_id, customer_id) DO UPDATE SET "
+                "  last_viewed_at = excluded.last_viewed_at, "
+                "  view_count = user_customer_views.view_count + 1",
+                (uid, customer_id, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("track view failed for uid=%s cid=%s", uid, customer_id)
+
+
 @app.get("/customers/{customer_id}", response_class=HTMLResponse)
 def customer_detail(
     request: Request,
@@ -435,6 +539,10 @@ def customer_detail(
             "<p style='padding:40px;text-align:center;color:#756E62'>未找到该客户</p>",
             status_code=404,
         )
+
+    # 记录这次访问，驱动"最近查看"排序
+    uid = getattr(request.state, "uid", "")
+    _track_view(uid, customer_id)
 
     c = dict(row)
 

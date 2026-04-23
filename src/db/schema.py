@@ -162,4 +162,19 @@ SCHEMA = [
         updated_at           TEXT NOT NULL
     )
     """,
+
+    # =========================================================
+    # 个人"最近查看"历史（列表个性化排序用）
+    # =========================================================
+    """
+    CREATE TABLE IF NOT EXISTS user_customer_views (
+        user_id        TEXT NOT NULL,            -- 飞书 open_id（或 dev 的 "pwd-user"）
+        customer_id    TEXT NOT NULL,
+        last_viewed_at TEXT NOT NULL,            -- ISO
+        view_count     INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (user_id, customer_id)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_uv_user_time "
+    "ON user_customer_views(user_id, last_viewed_at DESC)",
 ]

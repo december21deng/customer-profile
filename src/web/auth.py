@@ -373,6 +373,41 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
             status=401,
         )
 
+    # 顺手 auto-map open_id → crm_users（"我的客户"筛选要用）
+    # 规则：display_name 唯一匹配才写，防串；不覆盖已有映射；失败静默
+    feishu_name = (info_data.get("data") or {}).get("name") or info_data.get("name") or ""
+    if feishu_name:
+        try:
+            from src.db.connection import connect as _db_connect
+            _conn = _db_connect()
+            try:
+                _conn.execute(
+                    "UPDATE crm_users SET feishu_open_id = ? "
+                    "WHERE display_name = ? "
+                    "  AND (feishu_open_id IS NULL OR feishu_open_id = '') "
+                    "  AND 1 = (SELECT COUNT(*) FROM crm_users WHERE display_name = ?)",
+                    (open_id, feishu_name, feishu_name),
+                )
+                _conn.commit()
+                mapped = _conn.execute(
+                    "SELECT id FROM crm_users WHERE feishu_open_id = ?",
+                    (open_id,),
+                ).fetchone()
+                if mapped:
+                    logger.info(
+                        "auto-mapped open_id=%s → crm_users.id=%s (name=%s)",
+                        open_id, mapped["id"], feishu_name,
+                    )
+                else:
+                    logger.info(
+                        "no unique auto-map for name=%s (likely duplicate or missing)",
+                        feishu_name,
+                    )
+            finally:
+                _conn.close()
+        except Exception:
+            logger.exception("auto-map feishu_open_id failed (continue anyway)")
+
     # 存 token，供 user_access_token 身份的 API 调用（如搜同事）
     # 没 refresh_token 也存（只是 2h 后要重登），保证本地测试能跑。
     try:
