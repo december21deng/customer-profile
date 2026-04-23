@@ -468,24 +468,43 @@
     padding-bottom: 80px;  /* 给 FAB 留空间 */
   }
   .followup-card {
+    position: relative;
     display: block;
     background: var(--surface);
-    border-radius: 14px;
-    padding: 14px 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    transition: background .12s;
+    border-radius: 12px;
+    padding: 18px 18px 18px 22px;
+    border: 1px solid rgba(31, 35, 41, 0.06);
+    transition: background .12s ease;
+    overflow: hidden;
   }
-  .followup-card:active { background: var(--bg); }
+  /* 同客户卡片：左 accent 短条，覆盖首行 */
+  .followup-card::before {
+    content: "";
+    position: absolute;
+    top: 22px;
+    left: 10px;
+    width: 3px;
+    height: 18px;
+    background: var(--blue-600);
+    border-radius: 2px;
+  }
+  .followup-card:active { background: var(--neutral-50); }
   .followup-card .fc-customer {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--neutral-400);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--neutral-900);
+    line-height: 1.4;
+    letter-spacing: -0.1px;
     margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .followup-card .fc-date {
     font-size: 12px;
     color: var(--neutral-400);
-    margin-bottom: 6px;
+    margin-bottom: 12px;
+    font-weight: 500;
   }
   .followup-card .fc-title {
     font-size: 14px;
