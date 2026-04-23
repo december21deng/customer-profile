@@ -1,52 +1,106 @@
-# 客户列表：个性化排序（最近查看 / 我的客户）
+# 客户列表：按「最近查看」个性化排序
 
-**状态**：设计 → 实施中
+**状态**：设计 → 实施中（终版）
 **日期**：2026-04-24
 **作者**：kevin + Claude
 
 ## 背景
 
-客户列表当前只有一种排序：`crm_updated_at DESC`。销售每天要扫 50+ 客户，"和我有关的"应该浮到顶 —— 需要个人化。
+客户列表当前按 `crm_updated_at DESC` 排。销售每天要扫 50+ 客户，"我正在跟进的"应该浮顶。但"最近修改的"对销售价值很低（可能是同步脚本改的电话/地址）。
 
 ## 目标
 
-列表顶部加一个轻量下拉，两个选项：
+客户列表**单一排序**：我看过的客户浮顶，没看过的按最近真实活动排。**不加任何切换控件**（tab / 下拉都不要）。
 
-| 选项 | 语义 | 排序/过滤 |
+## 最终排序规则
+
+```sql
+ORDER BY
+  COALESCE(
+    uv.last_viewed_at,                          -- 我看过的：按我的查看时间
+    c.crm_recent_activity_at,                   -- 没看过的：按最近跟进时间
+    '1970-01-01'                                -- 都没有：沉底
+  ) DESC,
+  c.id DESC
+```
+
+分层效果：
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━
+刚才查看的客户      ← viewed 5 分钟前
+小时前查看的客户    ← viewed 2 小时前
+昨天查看的客户      ← viewed 昨天
+━━━━━━━━━━━━━━━━━━━━━━━━（我看过的结束）
+今天有跟进的客户    ← activity 今天
+昨天有跟进的客户    ← activity 昨天
+上周活动的客户      ← activity 上周
+━━━━━━━━━━━━━━━━━━━━━━━━
+从未活动的客户      ← NULL → 1970，沉底
+```
+
+视觉上是**一个连续列表**，没有分隔线，但顺序自然合理。
+
+## 核心设计决策
+
+### 为什么 fallback 用 `crm_recent_activity_at` 而不是 `crm_updated_at`
+
+| 字段 | 含义 | 对销售的价值 |
 |---|---|---|
-| **最近查看**（默认） | 我最近点过的客户浮顶，其他按 CRM 更新时间 | `COALESCE(views.last_viewed_at, c.crm_updated_at) DESC` |
-| **我的客户** | 我直接负责的客户（管理者/新人兜底显示全部） | 按名下数量分流，按 `c.crm_recent_activity_at DESC` 排 |
+| `crm_recent_activity_at` | 最近活动时间 | **高** —— 反映真实业务热度 |
+| `crm_updated_at` | 字段最后修改时间 | 低 —— 可能是同步脚本/自动任务改的 |
 
-## 关键设计
+销售扫列表想知道"这个客户热不热"，不是"档案今天有没有被改"。
 
-### "我的客户" 的角色自适应
+### 为什么不做下拉 / tab
 
-**问题**：管理者通常没有直接挂名在他名下的客户 —— 硬按 `owner_id = me` 过滤会返回空列表。"我的客户"这个词对管理者就成了谎言。
+推敲了四种方案：
 
-**方案**：分流逻辑
+| 方案 | 优点 | 缺点 | 结论 |
+|---|---|---|---|
+| A. 单视图 + 搜索 | 极简 | "我的客户"视图丢失 | 基础，本设计基于 A |
+| B. 双 tab（最近查看 / 我的客户）| 覆盖两种心智 | 需要完整 owner 映射、多 36px UI | 推过但被本方案取代 |
+| C. 下拉切换 | 节省空间 | 手机端发现性差 | 已实现后被替换 |
+| D. 单视图"我相关"过滤 | 简洁 | 新客户/冷客户发现不了 | 放弃 |
 
-```
-1. 当前用户 open_id 映射到 crm_users.id（下详）
-2. COUNT(customers WHERE crm_owner_id = 映射到的 id)
-3a. > 0  → 销售 → 过滤到自己名下
-3b. = 0  → 管理者 / 新人 / 映射失败 → 不过滤，显示全部
-4. 无论分支：ORDER BY c.crm_recent_activity_at DESC
-```
+**最终方案 = A 的精神 + 更好的 fallback 字段**。
 
-这样"我的客户"对所有人都有意义：
-- **销售**：看到自己名下的客户，按最近跟进时间排
-- **管理者**：看到全量客户，按最近跟进时间排（自然突出"有热度"的客户）
-- **新人 / 未映射**：看到全量客户，不会空
+这个方案比 B 少一个"我的客户"视图，代价是：**销售不能一键看到自己名下所有客户**。接受这个代价因为：
+- 销售日常就围着活跃客户转，"最近查看"本来就浮出了他们
+- 月末盘点这种场景可通过搜索应对（未来搜索可扩展"搜 owner"）
+- UI 保持极简，减少选择疲劳
 
-Label 的"我的" 在中文里够口语化，销售会自然理解为"我名下的"，管理者会自然理解为"我业务范围内的"，不别扭。
+### 为什么保留顶部静态 label "最近查看"
 
-### 个人 view 历史存储
+个性化排序是新特性，不能让用户意识不到：
 
-新表：
+- 写 label → 用户知道"这个列表是按我的习惯排的"
+- 不写 label → 功能技术上存在但用户感知不到 = 无价值
+
+做法：**静态灰字 `最近查看`，无交互、无箭头**。只是 subtitle，不是按钮。
+
+### 为什么卡片右下显示 "上次查看 X 前"
+
+光有 label 不够具象。在用户看过的卡片上加相对时间戳 `上次查看 3 天前`：
+- 给 label 语义提供**视觉证据**
+- 用户一眼理解"哦顶上是我刚看过的"
+- 没看过的卡片不显示 timestamp（避免"3 个月前查看"这种负面信号，对数据卫生也没贡献）
+
+### 为什么不加"未读小点"
+
+中文手机 app 里小点（红/蓝）几乎 100% 等于"未读消息"约定。
+- 红点：太强，用户以为有通知
+- 蓝点：太弱，用户不知道是什么意思
+
+所以"没看过但最近有活动"这个信号**不做指示灯**。这些客户自然会出现在"我看过"下方，按跟进时间排，本身就会浮到醒目位置。
+
+## 数据层
+
+### 新表：`user_customer_views`
 
 ```sql
 CREATE TABLE user_customer_views (
-    user_id        TEXT NOT NULL,
+    user_id        TEXT NOT NULL,    -- 飞书 open_id（dev 模式是 "pwd-user"）
     customer_id    TEXT NOT NULL,
     last_viewed_at TEXT NOT NULL,
     view_count     INTEGER NOT NULL DEFAULT 1,
@@ -56,156 +110,99 @@ CREATE INDEX idx_uv_user_time
   ON user_customer_views(user_id, last_viewed_at DESC);
 ```
 
-- PK `(user_id, customer_id)` UPSERT 更新时间
-- 索引 `(user_id, last_viewed_at DESC)` 查最近看的走索引
-- `view_count` 预留（以后可能做"最常看"）
-
 ### 写入：详情页访问时 UPSERT
 
-`GET /customers/{id}` 加一行：
+`GET /customers/{id}` 加一行（失败静默）：
 
 ```python
-conn.execute(
-    "INSERT INTO user_customer_views(user_id, customer_id, last_viewed_at, view_count) "
-    "VALUES(?, ?, ?, 1) "
-    "ON CONFLICT(user_id, customer_id) DO UPDATE SET "
-    "  last_viewed_at = excluded.last_viewed_at, "
-    "  view_count = user_customer_views.view_count + 1",
-    (uid, customer_id, now_iso()),
-)
+INSERT INTO user_customer_views(...)
+VALUES (?, ?, ?, 1)
+ON CONFLICT(user_id, customer_id) DO UPDATE SET
+  last_viewed_at = excluded.last_viewed_at,
+  view_count = user_customer_views.view_count + 1
 ```
 
-失败静默（不能让详情页因写 view 失败而挂）。
+### 读取：列表查询
 
-### 读取 SQL
-
-**最近查看**（默认）：
+`_fetch_page` 始终 LEFT JOIN views 表，始终按 COALESCE 排：
 
 ```sql
-SELECT c.*, v.last_viewed_at
+SELECT c.*, ..., uv.last_viewed_at,
+       COALESCE(uv.last_viewed_at, c.crm_recent_activity_at, '1970-01-01') AS sort_key
 FROM customers c
-LEFT JOIN user_customer_views v
-       ON v.user_id = ? AND v.customer_id = c.id
-WHERE c.crm_is_deleted = 0 ...
-ORDER BY COALESCE(v.last_viewed_at, c.crm_updated_at) DESC, c.id DESC
+LEFT JOIN user_customer_views uv ON uv.user_id = ? AND uv.customer_id = c.id
+...
+ORDER BY sort_key DESC, c.id DESC
 ```
 
-零记录时 `v.last_viewed_at` 全 NULL，COALESCE 回退到 `crm_updated_at` → **视觉上和原来一致**，用户无感。点过几个客户后，它们自然浮顶。
+## URL / 分页
 
-**我的客户**：
+- 不加 `sort` 参数（只有一种排序）
+- cursor 编码保持 `base64(sort_key|id)`，sort_key 含义稳定
 
-先查当前用户 owned count：
+## UI 改动
 
-```sql
-SELECT COUNT(*) FROM customers c
-JOIN crm_users u ON u.id = c.crm_owner_id
-WHERE c.crm_is_deleted = 0 AND u.feishu_open_id = ?
-```
-
-然后分流：
-
-```sql
--- 销售分支（owned > 0）
-SELECT c.* FROM customers c
-JOIN crm_users u ON u.id = c.crm_owner_id
-WHERE u.feishu_open_id = ?
-  AND c.crm_is_deleted = 0 ...
-ORDER BY COALESCE(c.crm_recent_activity_at, '1970-01-01') DESC, c.id DESC
-
--- 管理者/兜底分支（owned = 0）
-SELECT c.* FROM customers c
-WHERE c.crm_is_deleted = 0 ...
-ORDER BY COALESCE(c.crm_recent_activity_at, '1970-01-01') DESC, c.id DESC
-```
-
-### open_id → crm_users.id 映射
-
-问题：`crm_users.feishu_open_id` 列存在但 0/184 填了。
-
-方案：**OAuth 登录时 auto-map**。
-
-```python
-# OAuth 回调里拿到 open_id + feishu_name 之后
-conn.execute(
-    "UPDATE crm_users SET feishu_open_id = ? "
-    "WHERE display_name = ? "
-    "  AND (feishu_open_id IS NULL OR feishu_open_id = '') "
-    "  AND 1 = (SELECT COUNT(*) FROM crm_users WHERE display_name = ?)",
-    (open_id, feishu_name, feishu_name),
-)
-```
-
-规则：
-- 同名**唯一**才写（两个"张伟"就不 map，防串）
-- 不覆盖已有映射
-- 失败静默（写不上不影响登录）
-- 用户下次 OAuth 重登自动触发
-
-### URL 状态
-
-`/customers?sort=viewed|mine&owner=xxx&q=keyword`
-
-- `sort` 缺省 = `viewed`
-- 无效值回退到 `viewed`
-- 切 sort 时 cursor 丢弃，回第 1 页（方案 B）
-
-### Cursor 设计
-
-切 sort 从第 1 页开始（方案 B），cursor 编码保持 `base64(ts|id)`，`ts` 含义随 sort 变化：
-
-| sort | ts 含义 |
-|---|---|
-| `viewed` | `COALESCE(v.last_viewed_at, c.crm_updated_at)` |
-| `mine` | `COALESCE(c.crm_recent_activity_at, '1970-01-01')` |
-
-## 下拉 UI
-
-原生 `<select>` 在飞书 webview 里样式丑，自己做轻量 dropdown：
+### 列表顶部加轻量 label
 
 ```html
-<div class="sort-menu">
-  <button class="sort-trigger" id="sort-btn">
-    最近查看 <span class="sort-caret">▾</span>
-  </button>
-  <div class="sort-panel" id="sort-panel" hidden>
-    <a class="sort-item active" data-sort="viewed">最近查看</a>
-    <a class="sort-item"        data-sort="mine">我的客户</a>
-  </div>
-</div>
+<div class="list-sort-label">最近查看</div>
 ```
 
-- 点按钮 → 浮层打开
-- 点选项 → 带 `?sort=xxx` 整页刷（不走 HTMX，交互少不值得）
-- 点浮层外 → 关闭
+灰色 13px 字，左对齐，`padding: 8px 16px 0`。无箭头、无交互。
+
+### 卡片右下角相对时间
+
+模板里每个卡片加：
+```html
+{% if row.viewed_at_display %}
+  <span class="card-view-time">上次查看 {{ row.viewed_at_display }}</span>
+{% endif %}
+```
+
+`viewed_at_display` 由后端 `_relative_time(last_viewed_at)` 计算。
+
+灰色 12px 字，绝对定位到卡片右下角 / flex 贴右。
+
+## 清理（从之前的尝试回退）
+
+| 文件 | 要删的东西 |
+|---|---|
+| `src/web/app.py` | `SortMode`, `VALID_SORTS`, `DEFAULT_SORT`, `_normalize_sort`, `_count_user_owned_customers` |
+| `src/web/app.py` | `customers_page` / `customer_list_partial` 的 `sort` 参数 |
+| `src/web/app.py` | `_fetch_page` 里的 sort 分支（mine/viewed） |
+| `src/web/templates/customers.html` | `.sort-bar` / `.sort-menu` 块 + dropdown JS |
+| `src/web/templates/base.html` | `.sort-menu` / `.sort-trigger` / `.sort-panel` / `.sort-item` CSS |
+| `src/web/templates/_rows.html` | `sort` 参数在 sentinel URL 里的传递（没 sort 了） |
+
+**保留的东西**（以后可能还用）：
+- `src/db/schema.py` 的 `user_customer_views` 表
+- `src/web/auth.py` 的 OAuth auto-map feishu_open_id（以后做"我的客户"功能用）
+- `src/web/app.py` 的 `_track_view` 函数 + 详情页调用
 
 ## 实施清单
 
-| 文件 | 动作 | 行数 |
-|---|---|---|
-| `src/db/schema.py` | 加 `user_customer_views` 表 + 索引 | 10 |
-| `src/web/auth.py` | OAuth 回调里 auto-map feishu_open_id | 18 |
-| `src/web/app.py` | `customer_detail` UPSERT view | 12 |
-| `src/web/app.py` | `_fetch_page` 加 `sort` 参数 + 两分支 | 35 |
-| `src/web/app.py` | `/customers` 和 `/_p/customer-list` 带 `sort` | 10 |
-| `src/web/templates/customers.html` | sort 下拉 widget | 20 |
-| `src/web/templates/base.html` | `.sort-menu` CSS | 25 |
-| inline JS | 下拉点击逻辑 | 18 |
+| 项 | 行数 |
+|---|---|
+| `src/web/app.py`: 简化 `_fetch_page`（去 sort，fallback 改）| -40 / +15 |
+| `src/web/app.py`: route 去掉 sort 参数 | -10 |
+| `src/web/app.py`: `_decorate_rows` 加 `viewed_at_display` 计算 | +15 |
+| `src/web/templates/customers.html`: 删 dropdown，加静态 label | -30 / +3 |
+| `src/web/templates/base.html`: 删 dropdown CSS，加 label CSS + 卡片 timestamp CSS | -55 / +15 |
+| `src/web/templates/_rows.html`: 加 `上次查看 X 前` + 删 sort 传递 | +3 / -1 |
 
-合计 ~148 行。
-
-## 已记录的决策（便于以后回顾）
-
-1. **砍掉了"最近更新 / 最近跟进 / 全部"** —— 4 选项对用户是噪音，2 个选项已覆盖核心场景
-2. **"我负责的" 改名"我的客户"** —— 更口语，不"销售化"
-3. **"我的客户" 角色自适应** —— 管理者空列表问题用 owned=0 兜底解决
-4. **默认不加引导 / 提示** —— "最近查看" 的规则自洽，视觉上第一天和"最近更新"一致，用户看不出差异
-5. **排序切换丢弃 cursor** —— 简化实现，UX 可接受
-6. **feishu_open_id 自动 map** —— OAuth 时 display_name 唯一匹配才写，防串
-7. **view_count 预留但不用** —— 未来做"最常看"入口
+净 +~0 行（删改比例差不多）。
 
 ## 已知局限 / 未来
 
-- **密码登录模式所有人共用 uid="pwd-user"** → view 记录会串。dev 无所谓，prod 走 OAuth 没事
-- **同名冲突不 map** → 用户切"我的客户"走管理者兜底（显示全部）。合理兜底
-- **无 manager hierarchy 数据** → "我的团队"这种过滤做不了。目前用 owned=0 兜底足够
-- **view 表清理** → 单人数据量小，先不清。以后 scheduler 可加一个 weekly 清老的
+- **密码登录所有人共用 `uid="pwd-user"`** → view 记录会串。dev 无所谓，prod 用 OAuth 没事
+- **月末盘点"我所有客户"场景无直接入口** → 未来可考虑搜索支持"搜 owner"，或在详情页加"同负责人其他客户"入口
+- **view 表清理** → 暂不做。单人数据量小
+- **`feishu_open_id` 自动 map** → 代码保留，数据也会继续积累。以后做"我的客户"feature 可直接启用
+
+## 决策演进（便于以后回顾）
+
+1. 初版：4 个下拉选项（最近查看/更新/跟进/全部）— 过于复杂，选择疲劳
+2. V2：2 个下拉（最近查看/我的客户）— 管理者会空列表，"我的客户"label 不通用
+3. V3：双 tab（最近查看/我的客户）— 更清晰但多 36px UI
+4. V4：单视图"我有权限"过滤 — 冷启和发现性问题
+5. **终版**：单视图 + 个性化排序 + fallback 用最近跟进 — 简洁、自洽、可感知

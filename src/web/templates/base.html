@@ -125,51 +125,22 @@
     height: 1px; background: var(--neutral-200);
   }
 
-  /* ============ 列表顶部排序下拉 ============ */
-  .sort-bar {
-    display: flex; align-items: center;
-    padding: 8px 16px 0;
+  /* ============ 列表顶部「最近查看」静态 label ============ */
+  .list-sort-label {
+    padding: 10px 16px 0;
+    font-size: 13px;
+    color: var(--neutral-400);
+    font-weight: 500;
   }
-  .sort-menu {
-    position: relative;
-  }
-  .sort-trigger {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 4px 0;
-    background: transparent; border: 0;
-    font-family: inherit;
-    font-size: 14px; font-weight: 500;
-    color: var(--neutral-900);
-    cursor: pointer;
-  }
-  .sort-trigger:active { opacity: 0.7; }
-  .sort-caret {
+
+  /* ============ 客户卡片右下角「上次查看 X 前」============ */
+  .card .card-view-time {
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
     font-size: 11px;
     color: var(--neutral-400);
-  }
-  .sort-panel {
-    position: absolute;
-    top: calc(100% + 4px); left: 0;
-    min-width: 120px;
-    background: #fff;
-    border: 1px solid var(--neutral-200);
-    border-radius: 10px;
-    box-shadow: 0 6px 24px rgba(31,35,41,0.12);
-    padding: 4px;
-    z-index: 30;
-  }
-  .sort-item {
-    display: block;
-    padding: 8px 12px;
-    font-size: 14px;
-    color: var(--neutral-900);
-    text-decoration: none;
-    border-radius: 6px;
-  }
-  .sort-item:active { background: var(--blue-50); }
-  .sort-item.active {
-    color: var(--blue-600);
-    font-weight: 500;
+    pointer-events: none;   /* 纯标记，不抢卡片 tap */
   }
 
   /* ============ list / card ============ */

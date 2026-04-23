@@ -20,7 +20,6 @@
          autocomplete="off" />
   <input type="hidden" name="tab" value="{{ tab }}" />
   {% if owner %}<input type="hidden" name="owner" value="{{ owner }}" />{% endif %}
-  {% if sort and sort != 'viewed' %}<input type="hidden" name="sort" value="{{ sort }}" />{% endif %}
 </form>
 
 <nav class="tabs">
@@ -31,37 +30,7 @@
 </nav>
 
 {% if tab == 'customers' %}
-<div class="sort-bar">
-  <div class="sort-menu" id="sort-menu">
-    <button type="button" class="sort-trigger" id="sort-btn">
-      <span id="sort-label">{% if sort == 'mine' %}我的客户{% else %}最近查看{% endif %}</span>
-      <span class="sort-caret" aria-hidden="true">▾</span>
-    </button>
-    <div class="sort-panel" id="sort-panel" hidden role="menu">
-      <a class="sort-item {% if sort == 'viewed' %}active{% endif %}"
-         href="/customers?tab=customers&sort=viewed{% if q %}&q={{ q|urlencode }}{% endif %}"
-         data-sort="viewed" role="menuitem">最近查看</a>
-      <a class="sort-item {% if sort == 'mine' %}active{% endif %}"
-         href="/customers?tab=customers&sort=mine{% if q %}&q={{ q|urlencode }}{% endif %}"
-         data-sort="mine" role="menuitem">我的客户</a>
-    </div>
-  </div>
-</div>
-<script>
-(function() {
-  var menu = document.getElementById('sort-menu');
-  if (!menu) return;
-  var btn = document.getElementById('sort-btn');
-  var panel = document.getElementById('sort-panel');
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    panel.hidden = !panel.hidden;
-  });
-  document.addEventListener('click', function(e) {
-    if (!menu.contains(e.target)) panel.hidden = true;
-  });
-})();
-</script>
+<div class="list-sort-label">最近查看</div>
 {% endif %}
 
 <div id="list" class="list">

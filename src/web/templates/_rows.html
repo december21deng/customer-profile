@@ -67,12 +67,16 @@
           </span>
         </div>
       </div>
+
+      {% if r.viewed_at_display %}
+        <div class="card-view-time">上次查看 {{ r.viewed_at_display }}</div>
+      {% endif %}
     </a>
   {% endfor %}
 
   {% if next_cursor %}
     <div class="sentinel"
-         hx-get="/_p/customer-list?tab={{ tab }}&cursor={{ next_cursor|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if owner %}&owner={{ owner|urlencode }}{% endif %}{% if sort %}&sort={{ sort|urlencode }}{% endif %}"
+         hx-get="/_p/customer-list?tab={{ tab }}&cursor={{ next_cursor|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if owner %}&owner={{ owner|urlencode }}{% endif %}"
          hx-trigger="revealed"
          hx-swap="outerHTML"></div>
   {% else %}
