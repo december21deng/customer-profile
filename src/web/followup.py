@@ -369,14 +369,16 @@ def users_search(request: Request, q: str = "", limit: int = 20):
         oid = u.get("open_id")
         if not (name and oid):
             continue
-        # department_path 在响应里可能嵌在 department_ids → 名称需要另查；这里先用 department_ids 做简单展示
-        depart = ""
-        if u.get("department_ids"):
-            depart = u["department_ids"][0] if isinstance(u["department_ids"], list) else ""
+        # 次要文本：优先英文名（区别同名）；没有就留空。
+        # department_ids 是内部 ID，直接显示没意义，要名字得另调部门接口，先不展示。
+        sub = ""
+        en = u.get("en_name") or ""
+        if en and en != name:
+            sub = en
         items.append({
             "id": oid,
             "name": name,
-            "depart": depart,
+            "sub": sub,
             "avatar": (u.get("avatar") or {}).get("avatar_72") or "",
         })
     return {"items": items}

@@ -32,6 +32,9 @@
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* 默认的 [hidden] { display: none } 会被后面带 display 的 class 选择器盖掉（同等 specificity + 源顺序）。
+     这里强制生效，否则像 .picker-btn[hidden] / .draft-banner[hidden] 都藏不住。 */
+  [hidden] { display: none !important; }
   html, body {
     margin: 0; padding: 0;
     background: var(--bg);
@@ -645,7 +648,7 @@
     font-size: 12px;
     color: var(--neutral-400);
   }
-  /* 展开的搜索面板 */
+  /* 展开的搜索面板：替掉按钮的位置，保持布局流动 */
   .picker-panel {
     position: relative;
     width: 100%;
@@ -704,7 +707,7 @@
     font-size: 14px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .picker-depart {
+  .picker-sub {
     font-size: 12px;
     color: var(--neutral-400);
     white-space: nowrap;

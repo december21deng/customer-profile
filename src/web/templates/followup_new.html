@@ -111,7 +111,9 @@
         <div class="tag-list" id="client-chips"></div>
         <div class="tag-actions">
           <input type="text" class="tag-fallback-input" id="client-input"
-                 placeholder="输入姓名，回车添加" maxlength="40">
+                 placeholder="输入姓名，回车添加" maxlength="40"
+                 autocomplete="off" autocorrect="off"
+                 autocapitalize="none" spellcheck="false">
         </div>
       </div>
       <input type="hidden" name="client_attendees" id="f-client"
@@ -269,24 +271,24 @@
     }
 
     function renderResults(items) {
-      if (!items || items.length === 0) {
+      // 已选的同事从候选里过滤掉（chip 里已经在了，重复展示是噪音）
+      var unpicked = (items || []).filter(function(it) { return !hasPicked(it.id); });
+      if (unpicked.length === 0) {
         pickResults.innerHTML = '<div class="picker-empty">未搜到匹配的同事</div>';
         return;
       }
-      pickResults.innerHTML = items.map(function(it) {
-        var picked = hasPicked(it.id);
-        var depart = it.depart
-          ? '<span class="picker-depart">' + escapeHtml(it.depart) + '</span>'
+      pickResults.innerHTML = unpicked.map(function(it) {
+        var sub = it.sub
+          ? '<span class="picker-sub">' + escapeHtml(it.sub) + '</span>'
           : '';
-        return '<button type="button" class="picker-item' + (picked ? ' picked' : '') + '"' +
+        return '<button type="button" class="picker-item"' +
                ' data-id="' + escapeHtml(it.id) + '"' +
                ' data-name="' + escapeHtml(it.name) + '"' +
                ' data-avatar="' + escapeHtml(it.avatar || '') + '"' +
-               (picked ? ' disabled' : '') +
                '>' +
                avatarHtml(it.avatar, it.name) +
                '<span class="picker-name">' + escapeHtml(it.name) + '</span>' +
-               depart +
+               sub +
                '</button>';
       }).join('');
     }
@@ -335,20 +337,23 @@
 
     pickResults.addEventListener('click', function(e) {
       var btn = e.target.closest('.picker-item');
-      if (!btn || btn.disabled) return;
+      if (!btn) return;
       var id = btn.getAttribute('data-id');
       var name = btn.getAttribute('data-name');
       var avatar = btn.getAttribute('data-avatar') || '';
       if (!id || !name) return;
+      if (hasPicked(id)) return;
       if (ourState.length >= 20) {
         alert('最多选 20 人');
         return;
       }
       ourState.push({ id: id, name: name, avatar: avatar });
       ourCtl.sync();
-      // 标已选，保留面板以便连续选
-      btn.disabled = true;
-      btn.classList.add('picked');
+      // 直接把被选中的那一项从 DOM 移除，连续选时看得到剩下的
+      btn.remove();
+      if (!pickResults.querySelector('.picker-item')) {
+        pickResults.innerHTML = '<div class="picker-empty">没有更多候选</div>';
+      }
     });
 
     document.addEventListener('click', function(e) {
@@ -384,8 +389,16 @@
 
     var clientInput = document.getElementById('client-input');
     function addClient() {
-      var name = clientInput.value.trim();
+      // 归一化：两端空白、内部多空格合一；防 IME 瞎插空格（"to m" → "tom" 类情形也能解）
+      var name = clientInput.value.trim().replace(/\s+/g, ' ');
       if (!name) return;
+      // 去重（忽略大小写）
+      var lower = name.toLowerCase();
+      var dup = clientState.some(function(n) { return String(n).toLowerCase() === lower; });
+      if (dup) {
+        clientInput.value = '';
+        return;
+      }
       clientState.push(name);
       clientCtl.sync();
       clientInput.value = '';
