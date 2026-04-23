@@ -279,6 +279,22 @@ _NOISE_IMAGE_LINE = re.compile(
 # 从这些标签开始到文末全部砍掉（都是妙记的 meta 尾巴）
 _TAIL_CUT_MARKERS = ("客户合影", "客户合照", "会议合影", "会议合照", "相关链接")
 
+# 头部元信息行 —— 妙记自动或用户按老规定手动加的 "标签：值" 行，
+# 详情页顶部 KV 表已经覆盖，body 里重复展示是噪音。只去这些明确的 label，
+# 不碰正文里可能出现的 "XXX：" 句式。
+_HEADER_META_PATTERNS = [
+    re.compile(r"^\s*智能纪要\s*[:：]"),
+    re.compile(r"^\s*录音主题\s*[:：]"),
+    re.compile(r"^\s*录音时间\s*[:：]"),
+    re.compile(r"^\s*CRM\s*客户[^\n:：]*[:：]"),
+    re.compile(r"^\s*客户简称\s*[:：]"),
+    re.compile(r"^\s*会议主题\s*[:：]"),
+    re.compile(r"^\s*会议时间\s*[:：]"),
+    re.compile(r"^\s*(参会人员|客方参会人员|我方参会人员)\s*[:：]"),
+    re.compile(r"^\s*时间\s*[:：]\s*20\d{2}"),    # "时间：2026..." 只匹配开头带年份的，避免误伤
+    re.compile(r"^\s*地点\s*[:：]"),
+]
+
 
 def _clean_minutes_text(raw: str) -> str:
     """清理飞书智能纪要 raw_content 里的尾部噪音：
@@ -306,6 +322,9 @@ def _clean_minutes_text(raw: str) -> str:
         if _NOISE_IMAGE_LINE.match(s):
             continue
         if "智能纪要由 AI 生成" in s:
+            continue
+        # 标签类元信息行（老规定的手动 header）
+        if any(p.match(s) for p in _HEADER_META_PATTERNS):
             continue
         out.append(line)
 
