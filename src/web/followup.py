@@ -254,7 +254,8 @@ async def followup_submit(
     # 失败只写日志，H5 端看列表时 summary 暂时为空，允许用户点 regen-wiki 重跑
     background_tasks.add_task(run_ingest_pipeline, record_id)
 
-    return RedirectResponse(url=f"/customers/{customer_id}?tab=followup", status_code=302)
+    # 跳到详情页（而不是列表）：用户立刻能看到刚提交的记录 + 照片 + 参会人员
+    return RedirectResponse(url=f"/followup/{record_id}", status_code=302)
 
 
 @router.post("/followup/{record_id}/regen-wiki")

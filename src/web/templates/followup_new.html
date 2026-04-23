@@ -5,6 +5,14 @@
 
 <h1 class="detail-title">新增跟进</h1>
 
+<div class="draft-banner" id="draft-banner" hidden>
+  <span class="draft-msg">💡 检测到 <span id="draft-time">刚才</span> 未完成的草稿</span>
+  <div class="draft-actions">
+    <button type="button" class="draft-btn draft-primary" id="draft-restore">恢复</button>
+    <button type="button" class="draft-btn" id="draft-discard">丢弃</button>
+  </div>
+</div>
+
 <form method="post"
       action="/customers/{{ customer.id }}/followup"
       enctype="multipart/form-data"
@@ -22,9 +30,12 @@
       <label class="form-label" for="f-transcript">
         妙记链接<span class="req">*</span>
       </label>
-      <input class="form-input" id="f-transcript" name="transcript_url" type="url"
-             placeholder="粘贴飞书妙记链接"
-             value="{{ values.transcript_url or '' }}" required>
+      <div class="input-with-status">
+        <input class="form-input" id="f-transcript" name="transcript_url" type="url"
+               placeholder="粘贴飞书妙记链接"
+               value="{{ values.transcript_url or '' }}" required>
+        <span class="input-status" id="f-transcript-status" hidden></span>
+      </div>
       {% if errors.transcript_url %}
         <div class="form-error">{{ errors.transcript_url }}</div>
       {% endif %}
@@ -34,9 +45,12 @@
       <label class="form-label" for="f-minutes">
         会议纪要链接<span class="req">*</span>
       </label>
-      <input class="form-input" id="f-minutes" name="minutes_url" type="url"
-             placeholder="粘贴飞书会议纪要 docx 链接"
-             value="{{ values.minutes_url or '' }}" required>
+      <div class="input-with-status">
+        <input class="form-input" id="f-minutes" name="minutes_url" type="url"
+               placeholder="粘贴飞书会议纪要 docx 链接"
+               value="{{ values.minutes_url or '' }}" required>
+        <span class="input-status" id="f-minutes-status" hidden></span>
+      </div>
       {% if errors.minutes_url %}
         <div class="form-error">{{ errors.minutes_url }}</div>
       {% endif %}
@@ -183,6 +197,17 @@
       });
     }
 
+    // 头像渲染：有 avatar URL 用 <img>，失败 fallback 到首字；无 avatar 直接首字
+    function avatarHtml(avatar, name) {
+      var ch = escapeHtml((name || '?').slice(0, 1));
+      if (!avatar) return '<span class="chip-avatar">' + ch + '</span>';
+      var url = escapeHtml(avatar);
+      return '<span class="chip-avatar">' +
+             '<img src="' + url + '" alt="' + ch +
+             '" onerror="this.parentNode.textContent=\'' + ch + '\'">' +
+             '</span>';
+    }
+
     // -------- 我方参会人员（飞书原生 selectChatter） ------------
     var ourHidden = document.getElementById('f-our');
     var ourState = [];
@@ -190,9 +215,9 @@
       var raw = ourHidden.value;
       if (raw) ourState = JSON.parse(raw) || [];
     } catch(e) { ourState = []; }
-    // 兼容旧数据：{open_id, name} → {id, name}
+    // 兼容旧数据：{open_id, name} → {id, name, avatar}
     ourState = ourState.map(function(p) {
-      return { id: p.id || p.open_id, name: p.name };
+      return { id: p.id || p.open_id, name: p.name, avatar: p.avatar || '' };
     }).filter(function(p) { return p.name; });
 
     var ourChips = document.getElementById('our-chips');
@@ -202,10 +227,9 @@
       function(v) { ourState = v; },
       function(p, idx) {
         var name = p.name || '?';
-        var ch = name.slice(0, 1);
         var el = document.createElement('span');
         el.className = 'chip-tag';
-        el.innerHTML = '<span class="chip-avatar">' + escapeHtml(ch) + '</span>' +
+        el.innerHTML = avatarHtml(p.avatar, name) +
                        '<span>' + escapeHtml(name) + '</span>' +
                        '<button type="button" class="chip-rm" aria-label="移除">×</button>';
         el.querySelector('.chip-rm').onclick = function() {
@@ -263,9 +287,10 @@
         return '<button type="button" class="picker-item' + (picked ? ' picked' : '') + '"' +
                ' data-id="' + escapeHtml(it.id) + '"' +
                ' data-name="' + escapeHtml(it.name) + '"' +
+               ' data-avatar="' + escapeHtml(it.avatar || '') + '"' +
                (picked ? ' disabled' : '') +
                '>' +
-               '<span class="chip-avatar">' + escapeHtml(it.name.slice(0, 1)) + '</span>' +
+               avatarHtml(it.avatar, it.name) +
                '<span class="picker-name">' + escapeHtml(it.name) + '</span>' +
                depart +
                '</button>';
@@ -319,12 +344,13 @@
       if (!btn || btn.disabled) return;
       var id = btn.getAttribute('data-id');
       var name = btn.getAttribute('data-name');
+      var avatar = btn.getAttribute('data-avatar') || '';
       if (!id || !name) return;
       if (ourState.length >= 20) {
         alert('最多选 20 人');
         return;
       }
-      ourState.push({ id: id, name: name });
+      ourState.push({ id: id, name: name, avatar: avatar });
       ourCtl.sync();
       // 标已选，保留面板以便连续选
       btn.disabled = true;
@@ -380,25 +406,85 @@
 
     clientCtl.render();
 
-    // -------- 照片预览 ---------------------------------------
+    // -------- 照片预览 + 压缩 --------------------------------
     var fileInput = document.getElementById('f-photo');
     var drop = document.getElementById('photo-drop');
     var preview = document.getElementById('photo-preview');
     var img = document.getElementById('photo-img');
     var clearBtn = document.getElementById('photo-clear');
 
+    var MAX_EDGE = 1920;            // 最大边长（像素）
+    var JPEG_QUALITY = 0.85;
+    var COMPRESS_THRESHOLD = 500 * 1024;  // 小于 500KB 不压
+
+    // 画到 canvas 缩放；返回 Promise<Blob> 或 null（失败 fallback）
+    function compressImage(file) {
+      return new Promise(function(resolve) {
+        if (file.size <= COMPRESS_THRESHOLD) return resolve(null);
+        if (!window.HTMLCanvasElement || !HTMLCanvasElement.prototype.toBlob) {
+          return resolve(null);
+        }
+        var fr = new FileReader();
+        fr.onerror = function() { resolve(null); };
+        fr.onload = function() {
+          var im = new Image();
+          im.onerror = function() { resolve(null); };
+          im.onload = function() {
+            var w = im.naturalWidth, h = im.naturalHeight;
+            var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+            var cw = Math.round(w * scale), ch = Math.round(h * scale);
+            var cv = document.createElement('canvas');
+            cv.width = cw; cv.height = ch;
+            var ctx = cv.getContext('2d');
+            ctx.drawImage(im, 0, 0, cw, ch);
+            cv.toBlob(function(blob) {
+              if (!blob) return resolve(null);
+              // 压完比原图还大的话也 fallback（罕见，比如超小 png 转 jpg 反而大）
+              if (blob.size >= file.size) return resolve(null);
+              resolve(blob);
+            }, 'image/jpeg', JPEG_QUALITY);
+          };
+          im.src = fr.result;
+        };
+        fr.readAsDataURL(file);
+      });
+    }
+
+    function setFileInputFile(file) {
+      // 用 DataTransfer 把压缩后的 File 塞回 <input type="file">
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+    }
+
+    function showPreview(file) {
+      img.src = URL.createObjectURL(file);
+      preview.hidden = false;
+      drop.hidden = true;
+    }
+
     fileInput.addEventListener('change', function() {
       var f = fileInput.files && fileInput.files[0];
       if (!f) return;
-      if (f.size > 10 * 1024 * 1024) {
-        alert('图片不得超过 10MB');
+      // 先挡超大原图：30MB 以上直接拒（内存压力）
+      if (f.size > 30 * 1024 * 1024) {
+        alert('原图过大（>30MB），请先压缩或选别的图');
         fileInput.value = '';
         return;
       }
-      var url = URL.createObjectURL(f);
-      img.src = url;
-      preview.hidden = false;
-      drop.hidden = true;
+      compressImage(f).then(function(blob) {
+        var finalFile = f;
+        if (blob) {
+          finalFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+          setFileInputFile(finalFile);
+        }
+        if (finalFile.size > 10 * 1024 * 1024) {
+          alert('压缩后仍超 10MB，请换张图');
+          fileInput.value = '';
+          return;
+        }
+        showPreview(finalFile);
+      });
     });
 
     clearBtn.addEventListener('click', function() {
@@ -408,11 +494,153 @@
       drop.hidden = false;
     });
 
+    // -------- docx / 妙记 URL 实时校验 -----------------------
+    var DOC_ID_RE = [
+      /\/docx\/([A-Za-z0-9]+)/,
+      /\/wiki\/([A-Za-z0-9]+)/,
+      /\/docs\/([A-Za-z0-9]+)/,
+    ];
+    var MINUTES_RE = /feishu\.cn\/minutes\//;
+
+    function setStatus(el, ok, msg) {
+      if (msg === '') { el.hidden = true; el.className = 'input-status'; return; }
+      el.hidden = false;
+      el.className = 'input-status ' + (ok ? 'ok' : 'bad');
+      el.textContent = ok ? '✓' : '✗';
+      el.title = msg;
+    }
+
+    function checkMinutes() {
+      var url = document.getElementById('f-minutes').value.trim();
+      var st = document.getElementById('f-minutes-status');
+      if (!url) return setStatus(st, false, '');
+      var has = DOC_ID_RE.some(function(re) { return re.test(url); });
+      setStatus(st, has, has ? '链接可识别' : '看起来不是飞书会议纪要链接');
+    }
+
+    function checkTranscript() {
+      var url = document.getElementById('f-transcript').value.trim();
+      var st = document.getElementById('f-transcript-status');
+      if (!url) return setStatus(st, false, '');
+      var ok = MINUTES_RE.test(url);
+      setStatus(st, ok, ok ? '链接可识别' : '看起来不是飞书妙记链接');
+    }
+
+    document.getElementById('f-minutes').addEventListener('blur', checkMinutes);
+    document.getElementById('f-minutes').addEventListener('input', checkMinutes);
+    document.getElementById('f-transcript').addEventListener('blur', checkTranscript);
+    document.getElementById('f-transcript').addEventListener('input', checkTranscript);
+
+    // -------- 草稿自动保存（localStorage）-------------------
+    var DRAFT_KEY = 'followup-draft-{{ customer.id }}';
+    var DRAFT_TTL_DAYS = 7;
+
+    function snapshotDraft() {
+      return {
+        transcript_url: document.getElementById('f-transcript').value,
+        minutes_url:    document.getElementById('f-minutes').value,
+        meeting_date:   document.getElementById('f-date').value,
+        location:       document.getElementById('f-loc').value,
+        our_attendees:  ourState.slice(),
+        client_attendees: clientState.slice(),
+        background:     document.getElementById('f-bg').value,
+        _saved_at:      new Date().toISOString(),
+      };
+    }
+
+    function isFormEmpty() {
+      var d = snapshotDraft();
+      return !d.transcript_url && !d.minutes_url && !d.meeting_date &&
+             !d.location && !d.background &&
+             d.our_attendees.length === 0 && d.client_attendees.length === 0;
+    }
+
+    var draftTimer = null;
+    function saveDraft() {
+      if (isFormEmpty()) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(snapshotDraft()));
+      } catch (e) { /* quota exceeded 等，不提示 */ }
+    }
+    function saveDraftDebounced() {
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = setTimeout(saveDraft, 500);
+    }
+
+    // 所有表单输入都挂上 debounce 保存
+    ['f-transcript','f-minutes','f-date','f-loc','f-bg','client-input'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', saveDraftDebounced);
+    });
+    // ourCtl / clientCtl sync 时也存
+    var _origSyncOur = ourCtl.sync;
+    ourCtl.sync = function() { _origSyncOur(); saveDraftDebounced(); };
+    var _origSyncClient = clientCtl.sync;
+    clientCtl.sync = function() { _origSyncClient(); saveDraftDebounced(); };
+
+    // 恢复草稿（页面加载时，只在所有字段都空的情况下提示）
+    function friendlyTime(iso) {
+      try {
+        var diff = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
+        if (diff < 60) return '刚才';
+        if (diff < 3600) return Math.round(diff / 60) + ' 分钟前';
+        if (diff < 86400) return Math.round(diff / 3600) + ' 小时前';
+        return Math.round(diff / 86400) + ' 天前';
+      } catch (e) { return '刚才'; }
+    }
+
+    (function tryRestoreDraft() {
+      var raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      var draft;
+      try { draft = JSON.parse(raw); } catch (e) { localStorage.removeItem(DRAFT_KEY); return; }
+      // 过期清
+      if (draft._saved_at) {
+        var age = (Date.now() - Date.parse(draft._saved_at)) / 86400000;
+        if (age > DRAFT_TTL_DAYS) { localStorage.removeItem(DRAFT_KEY); return; }
+      }
+      if (!isFormEmpty()) return;  // 表单有 server 回填的 values，不覆盖
+
+      var banner = document.getElementById('draft-banner');
+      var timeSpan = document.getElementById('draft-time');
+      if (timeSpan) timeSpan.textContent = friendlyTime(draft._saved_at);
+      banner.hidden = false;
+
+      document.getElementById('draft-restore').addEventListener('click', function() {
+        document.getElementById('f-transcript').value = draft.transcript_url || '';
+        document.getElementById('f-minutes').value = draft.minutes_url || '';
+        document.getElementById('f-date').value = draft.meeting_date || '';
+        document.getElementById('f-loc').value = draft.location || '';
+        document.getElementById('f-bg').value = draft.background || '';
+        if (Array.isArray(draft.our_attendees)) {
+          ourState = draft.our_attendees.map(function(p) {
+            return { id: p.id, name: p.name, avatar: p.avatar || '' };
+          });
+          ourCtl.sync();
+        }
+        if (Array.isArray(draft.client_attendees)) {
+          clientState = draft.client_attendees.slice();
+          clientCtl.sync();
+        }
+        checkMinutes();
+        checkTranscript();
+        banner.hidden = true;
+      });
+      document.getElementById('draft-discard').addEventListener('click', function() {
+        localStorage.removeItem(DRAFT_KEY);
+        banner.hidden = true;
+      });
+    })();
+
     // -------- 防双击提交 + blur 触发未提交的 tag -----------
     var form = document.getElementById('followup-form');
     var btn = document.getElementById('submit-btn');
     form.addEventListener('submit', function() {
       addClient();  // 若还有未回车的名字一并加上
+      localStorage.removeItem(DRAFT_KEY);  // 提交成功前就清，反正失败会回填 values
       btn.disabled = true;
       btn.textContent = '提交中…';
     });
