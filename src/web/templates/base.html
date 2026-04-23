@@ -132,13 +132,22 @@
     height: 1px; background: var(--neutral-200);
   }
 
-  /* ============ 列表顶部「最近查看」静态 label ============ */
+  /* ============ 列表顶部「最近查看 ▾」label ============ */
   .list-sort-label {
-    padding: 12px 16px 6px;
-    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    margin: 4px 0 10px;
+    font-size: 13px;
+    color: var(--neutral-500);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+  .list-sort-label .caret {
+    font-size: 9px;
     color: var(--neutral-400);
-    font-weight: normal;
-    letter-spacing: 0.2px;
+    margin-top: 1px;
   }
 
   /* ============ 客户卡片右下角「上次查看 X 前」============ */

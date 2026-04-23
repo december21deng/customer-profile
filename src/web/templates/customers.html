@@ -36,7 +36,10 @@
 </nav>
 
 {% if tab == 'customers' %}
-<div class="list-sort-label">最近查看</div>
+<div class="list-sort-label">
+  <span>最近查看</span>
+  <span class="caret" aria-hidden="true">▾</span>
+</div>
 {% endif %}
 
 <div id="list" class="list">
