@@ -546,15 +546,20 @@
   .form-textarea {
     width: 100%;
     border: 0;
+    border-bottom: 2px solid transparent;
     background: transparent;
     font: inherit;
     font-size: 15px;
     color: var(--neutral-900);
-    padding: 4px 0;
+    padding: 6px 0;
     resize: vertical;
+    transition: border-color 0.15s;
   }
   .form-input:focus,
-  .form-textarea:focus { outline: none; }
+  .form-textarea:focus {
+    outline: none;
+    border-bottom-color: var(--blue-600);
+  }
   .form-input::placeholder,
   .form-textarea::placeholder { color: var(--neutral-300); }
   .form-textarea { min-height: 68px; line-height: 1.55; }
@@ -614,12 +619,12 @@
     display: flex; align-items: center; gap: 10px;
   }
   .picker-btn {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 6px 12px 6px 8px;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px 8px 12px;
     border-radius: 999px;
     background: var(--blue-50);
     color: var(--blue-600);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     border: 0;
     cursor: pointer;
@@ -632,8 +637,8 @@
   }
   .picker-plus {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 16px; height: 16px;
-    font-size: 16px; font-weight: 600;
+    width: 18px; height: 18px;
+    font-size: 18px; font-weight: 600;
     line-height: 1;
   }
   .picker-hint {

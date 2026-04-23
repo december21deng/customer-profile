@@ -4,9 +4,10 @@
 <a href="/customers/{{ customer.id }}" class="detail-back">返回</a>
 
 <h1 class="detail-title">新增跟进</h1>
+<div class="detail-sub">{{ customer.name }}</div>
 
 <div class="draft-banner" id="draft-banner" hidden>
-  <span class="draft-msg">💡 检测到 <span id="draft-time">刚才</span> 未完成的草稿</span>
+  <span class="draft-msg">💡 检测到<span id="draft-time">刚才</span>未完成的草稿</span>
   <div class="draft-actions">
     <button type="button" class="draft-btn draft-primary" id="draft-restore">恢复</button>
     <button type="button" class="draft-btn" id="draft-discard">丢弃</button>
@@ -17,13 +18,6 @@
       action="/customers/{{ customer.id }}/followup"
       enctype="multipart/form-data"
       id="followup-form">
-
-  <div class="form-section">
-    <div class="form-field">
-      <label class="form-label">客户</label>
-      <div class="form-readonly">{{ customer.name }}</div>
-    </div>
-  </div>
 
   <div class="form-section">
     <div class="form-field">
@@ -606,7 +600,8 @@
 
       var banner = document.getElementById('draft-banner');
       var timeSpan = document.getElementById('draft-time');
-      if (timeSpan) timeSpan.textContent = friendlyTime(draft._saved_at);
+      // 前后加空格，读起来自然（中英夹杂）
+      if (timeSpan) timeSpan.textContent = ' ' + friendlyTime(draft._saved_at) + ' ';
       banner.hidden = false;
 
       document.getElementById('draft-restore').addEventListener('click', function() {
