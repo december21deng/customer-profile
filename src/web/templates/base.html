@@ -127,20 +127,22 @@
 
   /* ============ 列表顶部「最近查看」静态 label ============ */
   .list-sort-label {
-    padding: 10px 16px 0;
-    font-size: 13px;
+    padding: 12px 16px 6px;
+    font-size: 12px;
     color: var(--neutral-400);
-    font-weight: 500;
+    font-weight: normal;
+    letter-spacing: 0.2px;
   }
 
   /* ============ 客户卡片右下角「上次查看 X 前」============ */
   .card .card-view-time {
     position: absolute;
-    right: 14px;
-    bottom: 10px;
+    right: 16px;
+    bottom: 12px;
     font-size: 11px;
     color: var(--neutral-400);
-    pointer-events: none;   /* 纯标记，不抢卡片 tap */
+    pointer-events: none;
+    font-weight: normal;
   }
 
   /* ============ list / card ============ */
@@ -150,28 +152,43 @@
     position: relative;
     display: block;
     background: var(--surface);
-    border-radius: 16px;
-    padding: 16px 18px;
-    box-shadow: 0 1px 2px rgba(31,35,41,0.04),
-                0 0 1px rgba(31,35,41,0.06);
-    transition: background .12s ease;
+    border-radius: 14px;
+    padding: 18px 18px 18px 22px;    /* 左 padding +4 给 accent 留位置 */
+    box-shadow: 0 1px 3px rgba(31,35,41,0.05),
+                0 0 0 1px rgba(31,35,41,0.04);
+    transition: background .12s ease, transform .12s ease;
+    overflow: hidden;                 /* 确保 ::before accent 不超出圆角 */
   }
-  .card:active { background: var(--bg); }
+  /* 左侧蓝色 accent 竖条 —— 视觉重量，像 Linear / Notion 卡片 */
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 18px; bottom: 18px;
+    left: 10px;
+    width: 3px;
+    background: var(--blue-600);
+    border-radius: 2px;
+  }
+  .card:active {
+    background: var(--bg);
+    transform: scale(0.997);
+  }
 
   .card .name {
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--neutral-900);
     line-height: 1.4;
-    margin: 0 40px 0 0;        /* 留 +按钮位置 */
+    margin: 0 44px 0 0;        /* 留 +按钮位置 */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    letter-spacing: -0.1px;
   }
   .card .tag-row {
     font-size: 12px;
     color: var(--neutral-500);
-    margin-top: 4px;
+    margin-top: 6px;
     line-height: 1.4;
   }
   .card .tag-row .stage { font-weight: 500; }
@@ -182,24 +199,39 @@
   .card .tag-row .stage-risk    { color: var(--red-500); }
   .card .tag-row .sep { margin: 0 6px; color: #D0D3D9; }
 
-  .card .fields { margin-top: 10px; }
+  /* fields：迷你表格对齐（grid 两列，label 灰、value 黑）*/
+  .card .fields {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    row-gap: 8px;
+    column-gap: 16px;
+    align-items: center;
+  }
   .card .field {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 3px 0;
+    display: contents;    /* label 和 value 作为独立格子参与父 grid */
   }
   .card .field .label {
-    font-size: 12px; color: var(--neutral-400);
-    letter-spacing: .2px;
+    font-size: 13px;
+    color: var(--neutral-400);
+    font-weight: normal;
+    white-space: nowrap;
+    letter-spacing: 0;
   }
   .card .field .value {
-    font-size: 13px; color: var(--neutral-700);
+    font-size: 14px;
+    color: var(--neutral-900);
     display: inline-flex; align-items: center; gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .card .field .value .muted { color: var(--neutral-400); }
+  .card .field .value .muted { color: var(--neutral-400); font-weight: normal; }
 
   .avatar {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 20px; height: 20px;
+    width: 22px; height: 22px;
     border-radius: 50%;
     font-size: 11px;
     font-weight: 500;
@@ -210,7 +242,7 @@
   .pool-pill {
     display: inline-flex; align-items: center;
     background: var(--neutral-100); color: var(--neutral-500);
-    padding: 2px 8px; border-radius: 999px;
+    padding: 3px 10px; border-radius: 999px;
     font-size: 12px;
   }
 
