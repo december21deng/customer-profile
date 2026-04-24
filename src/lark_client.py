@@ -503,9 +503,10 @@ def stream_docx_image(file_token: str, access_token: str | None = None):
         timeout=30,
     )
     if resp.status_code != 200:
+        # 不截断 —— 需要看到飞书完整的"required privilege"清单
         logger.error(
             "stream_docx_image: status=%s token=%s body=%s",
-            resp.status_code, file_token[:12], resp.text[:200],
+            resp.status_code, file_token[:12], resp.text,
         )
         return None, None
     ctype = resp.headers.get("Content-Type", "application/octet-stream")
@@ -534,7 +535,7 @@ def stream_board_image(whiteboard_token: str, access_token: str | None = None):
     if resp.status_code != 200:
         logger.warning(
             "stream_board_image: status=%s whiteboard=%s body=%s",
-            resp.status_code, whiteboard_token[:12], resp.text[:200],
+            resp.status_code, whiteboard_token[:12], resp.text,
         )
         return None, None
     ctype = resp.headers.get("Content-Type", "image/png")
