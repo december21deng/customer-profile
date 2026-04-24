@@ -615,20 +615,29 @@
     font-size: 14px;
     line-height: 1.55;
     min-width: 0;
+    align-items: flex-start;   /* label 对齐到第一行顶部 */
   }
-  .followup-card .fu-kv + .fu-kv { margin-top: 2px; }
+  .followup-card .fu-kv + .fu-kv { margin-top: 4px; }
   .followup-card .fu-k {
     flex: 0 0 72px;
     color: var(--neutral-400);
     font-size: 13px;
+    line-height: 1.55;
   }
   .followup-card .fu-v {
     flex: 1;
     min-width: 0;
     color: var(--neutral-900);
-    white-space: nowrap;
+    /* 多行裁剪：最多 3 行 + 省略号 */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+  /* 会议主题通常短，最多 2 行就够了 */
+  .followup-card .fu-kv.fu-kv-title .fu-v {
+    -webkit-line-clamp: 2;
   }
 
   /* ============ followup detail ============ */
