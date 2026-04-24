@@ -85,26 +85,34 @@
     {% if f.our_people %}
       <div class="fc-kv-k">我方</div>
       <div class="fc-kv-v fc-kv-v-people">
-        <span class="fc-avatar-stack">
-          {% for p in f.our_people[:3] %}
+        {% for p in f.our_people %}
+          <span class="fc-person">
             {% if p.avatar %}
               <span class="fc-av"><img src="{{ p.avatar }}" alt="{{ p.initial }}"
                    onerror="this.parentNode.textContent='{{ p.initial }}'"></span>
             {% else %}
               <span class="fc-av">{{ p.initial }}</span>
             {% endif %}
-          {% endfor %}
-        </span>
-        <span class="fc-kv-v-names">{{ f.our_names | join('、') }}</span>
+            <span class="fc-person-name">{{ p.name }}</span>
+          </span>
+        {% endfor %}
       </div>
     {% endif %}
     {% if f.client_names %}
       <div class="fc-kv-k">客户</div>
-      <div class="fc-kv-v">{{ f.client_names | join('、') }}</div>
+      <div class="fc-kv-v fc-kv-v-names-wrap">
+        {% for name in f.client_names %}
+          <span class="fc-person-name">{{ name }}</span>
+        {% endfor %}
+      </div>
     {% endif %}
     {% if f.other_names %}
       <div class="fc-kv-k">其他</div>
-      <div class="fc-kv-v">{{ f.other_names | join('、') }}</div>
+      <div class="fc-kv-v fc-kv-v-names-wrap">
+        {% for name in f.other_names %}
+          <span class="fc-person-name">{{ name }}</span>
+        {% endfor %}
+      </div>
     {% endif %}
   </div>
 </a>

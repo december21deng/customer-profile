@@ -737,24 +737,33 @@
     50%      { opacity: 1;    transform: scale(1);    }
   }
 
-  /* 我方 KV value：头像 stack + 名字，inline 对齐 */
+  /* 我方 KV value：每个人 [头像+名字] 成对，flex wrap 换行 */
   .followup-card .fc-kv-v-people {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    gap: 4px 12px;        /* 行距 4px，人与人之间 12px */
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
   }
-  .followup-card .fc-kv-v-names {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  /* 客户/其他：只有名字，flex wrap */
+  .followup-card .fc-kv-v-names-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
   }
-  .followup-card .fc-avatar-stack {
+  .followup-card .fc-person {
     display: inline-flex;
-    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+  }
+  .followup-card .fc-person-name {
+    color: var(--neutral-800);
   }
   .followup-card .fc-av {
     width: 18px; height: 18px;
@@ -765,11 +774,9 @@
     align-items: center; justify-content: center;
     font-size: 10px;
     font-weight: 600;
-    border: 1.5px solid var(--surface);
-    margin-left: -5px;
     overflow: hidden;
+    flex-shrink: 0;
   }
-  .followup-card .fc-avatar-stack .fc-av:first-child { margin-left: 0; }
   .followup-card .fc-av img {
     width: 100%; height: 100%;
     object-fit: cover; display: block;
