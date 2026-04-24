@@ -153,25 +153,24 @@
   <div class="form-section">
     <div class="form-field">
       <label class="form-label">
-        客户合照<span class="req">*</span>
+        相关照片<span class="req">*</span>
+        <span class="form-hint-inline">（最多 6 张，单张 ≤10MB）</span>
       </label>
-      <label class="photo-drop" id="photo-drop">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="5" width="18" height="14" rx="2"/>
-          <circle cx="12" cy="12" r="3.5"/>
-          <path d="M8 5l1.5-2h5L16 5"/>
-        </svg>
-        <div>点击上传（≤ 10MB）</div>
-        <input type="file" name="photo" id="f-photo"
-               accept="image/jpeg,image/png,image/gif" required>
-      </label>
-      <div class="photo-preview" id="photo-preview" hidden>
-        <img id="photo-img" alt="预览">
-        <button type="button" class="clear" id="photo-clear" aria-label="移除">×</button>
+      <div class="photo-grid" id="photo-grid">
+        <label class="photo-add" id="photo-add">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="14" rx="2"/>
+            <circle cx="12" cy="12" r="3.5"/>
+            <path d="M8 5l1.5-2h5L16 5"/>
+          </svg>
+          <span>添加</span>
+          <input type="file" id="f-photos" name="photos"
+                 accept="image/jpeg,image/png,image/gif" multiple>
+        </label>
       </div>
-      {% if errors.photo %}
-        <div class="form-error">{{ errors.photo }}</div>
+      {% if errors.photos %}
+        <div class="form-error">{{ errors.photos }}</div>
       {% endif %}
     </div>
   </div>
@@ -465,18 +464,17 @@
 
     clientCtl.render();
 
-    // -------- 照片预览 + 压缩 --------------------------------
-    var fileInput = document.getElementById('f-photo');
-    var drop = document.getElementById('photo-drop');
-    var preview = document.getElementById('photo-preview');
-    var img = document.getElementById('photo-img');
-    var clearBtn = document.getElementById('photo-clear');
+    // -------- 多图上传（预览 + 压缩） ------------------------
+    var photoInput = document.getElementById('f-photos');
+    var photoGrid  = document.getElementById('photo-grid');
+    var photoAdd   = document.getElementById('photo-add');
 
     var MAX_EDGE = 1920;            // 最大边长（像素）
     var JPEG_QUALITY = 0.85;
-    var COMPRESS_THRESHOLD = 500 * 1024;  // 小于 500KB 不压
+    var COMPRESS_THRESHOLD = 500 * 1024;
+    var MAX_PHOTOS = 6;
+    var photoFiles = [];            // 最终要提交的 File[]
 
-    // 画到 canvas 缩放；返回 Promise<Blob> 或 null（失败 fallback）
     function compressImage(file) {
       return new Promise(function(resolve) {
         if (file.size <= COMPRESS_THRESHOLD) return resolve(null);
@@ -498,7 +496,6 @@
             ctx.drawImage(im, 0, 0, cw, ch);
             cv.toBlob(function(blob) {
               if (!blob) return resolve(null);
-              // 压完比原图还大的话也 fallback（罕见，比如超小 png 转 jpg 反而大）
               if (blob.size >= file.size) return resolve(null);
               resolve(blob);
             }, 'image/jpeg', JPEG_QUALITY);
@@ -509,48 +506,68 @@
       });
     }
 
-    function setFileInputFile(file) {
-      // 用 DataTransfer 把压缩后的 File 塞回 <input type="file">
-      var dt = new DataTransfer();
-      dt.items.add(file);
-      fileInput.files = dt.files;
-    }
+    function renderPhotoGrid() {
+      // 清掉所有 thumbnail（保留末尾的 add 按钮）
+      var thumbs = photoGrid.querySelectorAll('.photo-thumb');
+      for (var i = 0; i < thumbs.length; i++) thumbs[i].remove();
 
-    function showPreview(file) {
-      img.src = URL.createObjectURL(file);
-      preview.hidden = false;
-      drop.hidden = true;
-    }
-
-    fileInput.addEventListener('change', function() {
-      var f = fileInput.files && fileInput.files[0];
-      if (!f) return;
-      // 先挡超大原图：30MB 以上直接拒（内存压力）
-      if (f.size > 30 * 1024 * 1024) {
-        alert('原图过大（>30MB），请先压缩或选别的图');
-        fileInput.value = '';
-        return;
-      }
-      compressImage(f).then(function(blob) {
-        var finalFile = f;
-        if (blob) {
-          finalFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
-          setFileInputFile(finalFile);
-        }
-        if (finalFile.size > 10 * 1024 * 1024) {
-          alert('压缩后仍超 10MB，请换张图');
-          fileInput.value = '';
-          return;
-        }
-        showPreview(finalFile);
+      photoFiles.forEach(function(file, idx) {
+        var thumb = document.createElement('div');
+        thumb.className = 'photo-thumb';
+        var im = document.createElement('img');
+        im.src = URL.createObjectURL(file);
+        im.alt = '预览';
+        thumb.appendChild(im);
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'photo-thumb-rm';
+        rm.setAttribute('aria-label', '移除');
+        rm.textContent = '×';
+        rm.onclick = function() {
+          photoFiles.splice(idx, 1);
+          renderPhotoGrid();
+        };
+        thumb.appendChild(rm);
+        photoGrid.insertBefore(thumb, photoAdd);
       });
-    });
 
-    clearBtn.addEventListener('click', function() {
-      fileInput.value = '';
-      img.src = '';
-      preview.hidden = true;
-      drop.hidden = false;
+      // 到上限就隐藏"添加"
+      photoAdd.hidden = photoFiles.length >= MAX_PHOTOS;
+    }
+
+    photoInput.addEventListener('change', function() {
+      var picked = Array.from(photoInput.files || []);
+      photoInput.value = '';   // 重置 input，允许再次选同一文件
+      if (picked.length === 0) return;
+
+      var remaining = MAX_PHOTOS - photoFiles.length;
+      if (picked.length > remaining) {
+        alert('最多 ' + MAX_PHOTOS + ' 张，已忽略多余的');
+        picked = picked.slice(0, remaining);
+      }
+
+      // 逐张校验 + 压缩
+      Promise.all(picked.map(function(f) {
+        if (f.size > 30 * 1024 * 1024) {
+          alert((f.name || '图片') + ' 过大（>30MB），已跳过');
+          return Promise.resolve(null);
+        }
+        return compressImage(f).then(function(blob) {
+          var finalFile = f;
+          if (blob) {
+            var base = (f.name || 'photo').replace(/\.[^.]+$/, '');
+            finalFile = new File([blob], base + '.jpg', { type: 'image/jpeg' });
+          }
+          if (finalFile.size > 10 * 1024 * 1024) {
+            alert((f.name || '图片') + ' 压缩后仍超 10MB，已跳过');
+            return null;
+          }
+          return finalFile;
+        });
+      })).then(function(results) {
+        results.forEach(function(f) { if (f) photoFiles.push(f); });
+        renderPhotoGrid();
+      });
     });
 
     // -------- docx / 妙记 URL 实时校验 -----------------------
@@ -719,6 +736,12 @@
     form.addEventListener('submit', function() {
       // 面板里如果还有未确认的名字，一并加上
       if (!clientPanel.hidden) clientCommit();
+      // 把 JS 里攒的 photoFiles 塞进 <input type=file name=photos> 让它随 multipart 提交
+      try {
+        var dt = new DataTransfer();
+        photoFiles.forEach(function(f) { dt.items.add(f); });
+        photoInput.files = dt.files;
+      } catch (e) { /* 浏览器不支持 DataTransfer 也就算了 */ }
       localStorage.removeItem(DRAFT_KEY);  // 提交成功前就清，反正失败会回填 values
       btn.disabled = true;
       btn.textContent = '提交中…';

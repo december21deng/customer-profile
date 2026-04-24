@@ -41,6 +41,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # ---- 限制 ----------------------------------------------------------
 MAX_PHOTO_BYTES = 10 * 1024 * 1024  # 10MB（Lark im/v1/images 上限）
+MAX_PHOTOS = 6                       # 最多上传张数
 ALLOWED_MIMES = {"image/jpeg", "image/jpg", "image/png", "image/gif"}
 MAX_LOCATION = 100
 MAX_BACKGROUND = 500
@@ -129,7 +130,7 @@ async def followup_submit(
     our_attendees: str = Form(...),      # JSON: [{"open_id":..,"name":..}]
     client_attendees: str = Form(...),   # JSON: ["name1", "name2"]
     background: str = Form(...),
-    photo: UploadFile = File(...),
+    photos: list[UploadFile] = File(default_factory=list),
     _csrf: None = Depends(require_csrf_form),
 ):
     customer = _fetch_customer(customer_id)
@@ -198,27 +199,41 @@ async def followup_submit(
     elif len(bg_s) > MAX_BACKGROUND:
         errors["background"] = f"不超过 {MAX_BACKGROUND} 字"
 
-    # 7. 照片（读字节以便校验大小 + 后续上传）
-    photo_bytes = await photo.read()
-    if not photo_bytes:
-        errors["photo"] = "必填"
-    elif len(photo_bytes) > MAX_PHOTO_BYTES:
-        errors["photo"] = "图片不得超过 10MB"
-    elif photo.content_type and photo.content_type.lower() not in ALLOWED_MIMES:
-        errors["photo"] = "仅支持 JPEG / PNG / GIF"
+    # 7. 照片（0-MAX_PHOTOS 张，至少 1 张）—— 先校验，再保存
+    valid_photos: list[tuple[bytes, str | None, str | None]] = []
+    # 过滤空的 UploadFile（FastAPI 对空 input[type=file] 会塞一个空条目进来）
+    real_photos = [p for p in (photos or []) if p and p.filename]
+    if not real_photos:
+        errors["photos"] = "至少上传 1 张照片"
+    elif len(real_photos) > MAX_PHOTOS:
+        errors["photos"] = f"最多上传 {MAX_PHOTOS} 张"
+    else:
+        for p in real_photos:
+            b = await p.read()
+            if not b:
+                errors["photos"] = "图片为空，请重新上传"
+                break
+            if len(b) > MAX_PHOTO_BYTES:
+                errors["photos"] = f"{p.filename} 超过 10MB"
+                break
+            if p.content_type and p.content_type.lower() not in ALLOWED_MIMES:
+                errors["photos"] = f"{p.filename} 不是 JPEG/PNG/GIF"
+                break
+            valid_photos.append((b, p.filename, p.content_type))
 
     if errors:
         return _render_form(request, customer, errors=errors, values=values, status_code=400)
 
-    # 8. 保存图片（dev 本地 / prod 飞书）
-    image_key = photo_storage.save(
-        photo_bytes,
-        filename=photo.filename,
-        content_type=photo.content_type,
-    )
-    if not image_key:
-        errors["photo"] = "图片保存失败，请重试"
-        return _render_form(request, customer, errors=errors, values=values, status_code=500)
+    # 8. 保存每张图片（dev 本地 / prod 飞书）
+    image_keys: list[str] = []
+    for (b, fname, ctype) in valid_photos:
+        key = photo_storage.save(b, filename=fname, content_type=ctype)
+        if not key:
+            errors["photos"] = "图片保存失败，请重试"
+            return _render_form(request, customer, errors=errors, values=values, status_code=500)
+        image_keys.append(key)
+    # 第一张也写进旧的 photo_image_key，保持 legacy 兼容（老代码路径还在读这列）
+    first_key = image_keys[0] if image_keys else None
 
     # 9. 写库
     owner_id = getattr(request.state, "uid", None)
@@ -233,9 +248,10 @@ async def followup_submit(
                 INSERT INTO followup_records (
                     id, customer_id, owner_id, meeting_date,
                     location, our_attendees, client_attendees, background,
-                    minutes_doc_url, minutes_doc_id, transcript_url, photo_image_key,
+                    minutes_doc_url, minutes_doc_id, transcript_url,
+                    photo_image_key, photo_image_keys,
                     source_type, created_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     record_id, customer_id, owner_id, meeting_iso,
@@ -243,7 +259,8 @@ async def followup_submit(
                     json.dumps(our_list, ensure_ascii=False),
                     json.dumps(client_list, ensure_ascii=False),
                     bg_s,
-                    minutes_url.strip(), doc_id, transcript_s, image_key,
+                    minutes_url.strip(), doc_id, transcript_s,
+                    first_key, json.dumps(image_keys, ensure_ascii=False),
                     "manual", now,
                 ),
             )
@@ -315,10 +332,13 @@ def followup_detail(request: Request, record_id: str):
             """
             SELECT r.*,
                    c.name AS customer_name,
-                   u.display_name AS owner_display_name
+                   u.display_name AS crm_owner_name,
+                   ut.display_name AS fs_owner_name,
+                   ut.avatar AS fs_owner_avatar
             FROM followup_records r
             JOIN customers c ON c.id = r.customer_id
             LEFT JOIN crm_users u ON u.feishu_open_id = r.owner_id
+            LEFT JOIN user_tokens ut ON ut.open_id = r.owner_id
             WHERE r.id = ?
             """,
             (record_id,),
@@ -335,12 +355,24 @@ def followup_detail(request: Request, record_id: str):
     r = dict(row)
     our_list = _safe_json_list(r.get("our_attendees"))
     client_list = _safe_json_list(r.get("client_attendees"))
+    # photo_image_keys（多图 JSON 数组）优先；否则 fallback 到 legacy 单图
+    photo_keys = _safe_json_list(r.get("photo_image_keys"))
+    if not photo_keys and r.get("photo_image_key"):
+        photo_keys = [r["photo_image_key"]]
+    r["photo_keys"] = photo_keys
 
     # 尝试拉纪要文字（权限未开通时 error 非 None）
     minutes_text = None
     minutes_error = None
     if r.get("minutes_doc_id"):
         minutes_text, minutes_error = fetch_docx_raw(r["minutes_doc_id"])
+
+    owner_name = (
+        r.get("crm_owner_name")
+        or r.get("fs_owner_name")
+        or "—"
+    )
+    owner_avatar = r.get("fs_owner_avatar") or ""
 
     return templates.TemplateResponse(
         "followup_detail.html",
@@ -350,7 +382,8 @@ def followup_detail(request: Request, record_id: str):
             "our_list": our_list,
             "client_list": client_list,
             "date_display": _format_meeting_date(r.get("meeting_date")),
-            "owner_name": r.get("owner_display_name") or (r.get("owner_id") or "—"),
+            "owner_name": owner_name,
+            "owner_avatar": owner_avatar,
             "minutes_text": minutes_text,
             "minutes_error": minutes_error,
         },

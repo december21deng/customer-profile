@@ -98,7 +98,8 @@ SCHEMA = [
         minutes_doc_url   TEXT,                   -- 会议纪要 docx URL 原文
         minutes_doc_id    TEXT,                   -- 从 URL 提取的 doc_id
         transcript_url    TEXT,                   -- 妙记 URL（存档，AI ingest 时用）
-        photo_image_key   TEXT,                   -- Lark im/v1/images 的 image_key
+        photo_image_key   TEXT,                   -- 旧：单图 image_key（legacy，读时 fallback）
+        photo_image_keys  TEXT NOT NULL DEFAULT '[]',  -- 多图：JSON 数组 of image_key
         -- 共用字段（ingest 也会用）
         source_type       TEXT,                   -- 'manual' | 'chat' | 'meeting_link'
         source_url        TEXT,
@@ -159,6 +160,8 @@ SCHEMA = [
         refresh_token        TEXT NOT NULL,
         access_expires_at    TEXT NOT NULL,   -- ISO，2h 有效期
         refresh_expires_at   TEXT NOT NULL,   -- ISO，30d 有效期
+        display_name         TEXT NOT NULL DEFAULT '',  -- OAuth 时顺带存，用于展示 owner 名字
+        avatar               TEXT NOT NULL DEFAULT '',  -- OAuth 时顺带存
         updated_at           TEXT NOT NULL
     )
     """,

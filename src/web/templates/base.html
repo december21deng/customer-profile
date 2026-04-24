@@ -370,11 +370,11 @@
     margin: 0 0 12px 0;
     letter-spacing: -0.1px;
   }
-  /* kv：迷你表格布局，label 72px 固定灰，value 自适应黑 */
+  /* kv：迷你表格布局，label 88px 固定灰，value 自适应黑 */
   .kv {
     display: grid;
     grid-template-columns: 88px 1fr;
-    column-gap: 16px;
+    column-gap: 28px;
     padding: 7px 0;
     font-size: 14px;
     align-items: baseline;
@@ -621,6 +621,24 @@
     width: 100%;
     max-height: 320px;
     object-fit: cover;
+  }
+  /* 多图 gallery：3 列正方形 */
+  .fd-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .fd-photo-cell {
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--neutral-100);
+    display: block;
+  }
+  .fd-photo-cell img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
   }
   .fd-attendee-row {
     display: flex;
@@ -1000,40 +1018,53 @@
   }
   .chip-rm:active { background: rgba(51,112,255,0.16); }
 
-  .photo-drop {
-    display: flex; align-items: center; justify-content: center;
-    flex-direction: column; gap: 6px;
-    border: 1.5px dashed var(--neutral-200);
-    border-radius: 12px;
-    padding: 28px 16px;
-    color: var(--neutral-400);
-    font-size: 13px;
-    background: var(--neutral-50);
-    cursor: pointer;
+  /* 多图上传：3 列 grid，thumbnails + "添加"按钮同一容器 */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
   }
-  .photo-drop svg { width: 26px; height: 26px; color: var(--neutral-300); }
-  .photo-drop input { display: none; }
-  .photo-preview {
+  .photo-thumb {
     position: relative;
-    border-radius: 12px;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
     overflow: hidden;
     background: var(--neutral-100);
   }
-  .photo-preview img {
+  .photo-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
     display: block;
-    width: 100%;
-    max-height: 280px;
-    object-fit: contain;
   }
-  .photo-preview .clear {
+  .photo-thumb-rm {
     position: absolute;
-    top: 8px; right: 8px;
-    width: 28px; height: 28px;
+    top: 4px; right: 4px;
+    width: 22px; height: 22px;
     border-radius: 50%;
-    background: rgba(31,35,41,0.6);
+    background: rgba(31,35,41,0.7);
     color: #fff; border: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 16px;
+    font-size: 14px; line-height: 1; padding: 0;
+    cursor: pointer;
+  }
+  .photo-add {
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+    aspect-ratio: 1 / 1;
+    border: 1.5px dashed var(--neutral-200);
+    border-radius: 10px;
+    background: var(--neutral-50);
+    color: var(--neutral-400);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .photo-add svg { width: 22px; height: 22px; color: var(--neutral-300); }
+  .photo-add input { display: none; }
+  .form-hint-inline {
+    font-weight: normal;
+    font-size: 12px;
+    color: var(--neutral-400);
+    margin-left: 6px;
   }
 
   .form-submit {

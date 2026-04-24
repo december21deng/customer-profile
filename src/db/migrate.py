@@ -25,23 +25,36 @@ def _run_column_migrations(conn: sqlite3.Connection) -> int:
     has_table = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='followup_records'"
     ).fetchone()
-    if not has_table:
-        return 0
-    for col, decl in [
-        ("location", "TEXT"),
-        ("our_attendees", "TEXT"),
-        ("client_attendees", "TEXT"),
-        ("background", "TEXT"),
-        ("minutes_doc_url", "TEXT"),
-        ("minutes_doc_id", "TEXT"),
-        ("transcript_url", "TEXT"),
-        ("photo_image_key", "TEXT"),
-        # v0.4: 列表 item 新加的两个 AI 短字段
-        ("meeting_title", "TEXT NOT NULL DEFAULT ''"),
-        ("progress_line", "TEXT NOT NULL DEFAULT ''"),
-    ]:
-        if _add_col_if_missing(conn, "followup_records", col, decl):
-            added += 1
+    if has_table:
+        for col, decl in [
+            ("location", "TEXT"),
+            ("our_attendees", "TEXT"),
+            ("client_attendees", "TEXT"),
+            ("background", "TEXT"),
+            ("minutes_doc_url", "TEXT"),
+            ("minutes_doc_id", "TEXT"),
+            ("transcript_url", "TEXT"),
+            ("photo_image_key", "TEXT"),
+            # v0.4: 列表 item 新加的两个 AI 短字段
+            ("meeting_title", "TEXT NOT NULL DEFAULT ''"),
+            ("progress_line", "TEXT NOT NULL DEFAULT ''"),
+            # v0.5: 多图：JSON 数组
+            ("photo_image_keys", "TEXT NOT NULL DEFAULT '[]'"),
+        ]:
+            if _add_col_if_missing(conn, "followup_records", col, decl):
+                added += 1
+
+    # v0.6: user_tokens 加 display_name + avatar（OAuth 时顺手存）
+    has_ut = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_tokens'"
+    ).fetchone()
+    if has_ut:
+        for col, decl in [
+            ("display_name", "TEXT NOT NULL DEFAULT ''"),
+            ("avatar", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            if _add_col_if_missing(conn, "user_tokens", col, decl):
+                added += 1
     return added
 
 

@@ -260,8 +260,13 @@ def _store_user_tokens(
     refresh_token: str,
     expires_in: int,
     refresh_expires_in: int,
+    display_name: str = "",
+    avatar: str = "",
 ) -> None:
-    """OAuth 拿到的 token 存库，后续调飞书 user_access_token 身份的 API 用。"""
+    """OAuth 拿到的 token 存库，后续调飞书 user_access_token 身份的 API 用。
+
+    顺手把 display_name + avatar 也存起来 —— 详情页"记录人"回显时不用再查飞书。
+    """
     now = datetime.now()
     access_expires_at = (now + timedelta(seconds=expires_in)).isoformat(timespec="seconds")
     refresh_expires_at = (now + timedelta(seconds=refresh_expires_in)).isoformat(timespec="seconds")
@@ -274,17 +279,25 @@ def _store_user_tokens(
                 """
                 INSERT INTO user_tokens
                     (open_id, access_token, refresh_token,
-                     access_expires_at, refresh_expires_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                     access_expires_at, refresh_expires_at,
+                     display_name, avatar, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(open_id) DO UPDATE SET
                     access_token       = excluded.access_token,
                     refresh_token      = excluded.refresh_token,
                     access_expires_at  = excluded.access_expires_at,
                     refresh_expires_at = excluded.refresh_expires_at,
+                    display_name       = CASE WHEN excluded.display_name != ''
+                                              THEN excluded.display_name
+                                              ELSE user_tokens.display_name END,
+                    avatar             = CASE WHEN excluded.avatar != ''
+                                              THEN excluded.avatar
+                                              ELSE user_tokens.avatar END,
                     updated_at         = excluded.updated_at
                 """,
                 (open_id, access_token, refresh_token,
-                 access_expires_at, refresh_expires_at, now_iso),
+                 access_expires_at, refresh_expires_at,
+                 display_name, avatar, now_iso),
             )
     finally:
         conn.close()
@@ -408,6 +421,16 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
         except Exception:
             logger.exception("auto-map feishu_open_id failed (continue anyway)")
 
+    # OAuth user_info 里顺带拿 avatar（详情页"记录人" 展示用）
+    _data = info_data.get("data") or info_data
+    feishu_avatar = (
+        _data.get("avatar_url")
+        or _data.get("avatar_big")
+        or _data.get("avatar_middle")
+        or _data.get("avatar_thumb")
+        or ""
+    )
+
     # 存 token，供 user_access_token 身份的 API 调用（如搜同事）
     # 没 refresh_token 也存（只是 2h 后要重登），保证本地测试能跑。
     try:
@@ -417,6 +440,8 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
             refresh_token=refresh_token or "",
             expires_in=expires_in,
             refresh_expires_in=refresh_expires_in if refresh_token else 0,
+            display_name=feishu_name or "",
+            avatar=feishu_avatar or "",
         )
         logger.info(
             "stored user_tokens for open_id=%s (access_exp=%ds, has_refresh=%s)",

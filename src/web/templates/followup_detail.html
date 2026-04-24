@@ -35,8 +35,15 @@
           {% if our_list %}
             {% for p in our_list %}
               <span class="chip-tag">
-                <span class="chip-avatar">{{ (p.name or '?')[:1] }}</span>
-                <span>{{ p.name or p.open_id or '—' }}</span>
+                {% if p.avatar %}
+                  <span class="chip-avatar">
+                    <img src="{{ p.avatar }}" alt="{{ (p.name or '?')[:1] }}"
+                         onerror="this.parentNode.textContent='{{ (p.name or '?')[:1] }}'">
+                  </span>
+                {% else %}
+                  <span class="chip-avatar">{{ (p.name or '?')[:1] }}</span>
+                {% endif %}
+                <span>{{ p.name or '—' }}</span>
               </span>
             {% endfor %}
           {% else %}
@@ -61,7 +68,19 @@
 
   <div class="kv">
     <span class="k">记录人</span>
-    <span class="v">{{ owner_name }}</span>
+    <span class="v">
+      <span class="chip-tag">
+        {% if owner_avatar %}
+          <span class="chip-avatar">
+            <img src="{{ owner_avatar }}" alt="{{ (owner_name or '?')[:1] }}"
+                 onerror="this.parentNode.textContent='{{ (owner_name or '?')[:1] }}'">
+          </span>
+        {% else %}
+          <span class="chip-avatar">{{ (owner_name or '?')[:1] }}</span>
+        {% endif %}
+        <span>{{ owner_name }}</span>
+      </span>
+    </span>
   </div>
 </section>
 
@@ -123,12 +142,16 @@
   </div>
 </section>
 
-{# ============ 4. 会议合照（如果有，放最后）============ #}
-{% if r.photo_image_key %}
+{# ============ 4. 相关照片（多图：会议合照/产品照/白板照等，如果有，放最后）============ #}
+{% if r.photo_keys %}
 <section class="section">
-  <h3>会议合照</h3>
-  <div class="fd-photo">
-    <img src="/api/image/{{ r.photo_image_key }}" alt="合照">
+  <h3>相关照片</h3>
+  <div class="fd-photo-grid">
+    {% for key in r.photo_keys %}
+      <a class="fd-photo-cell" href="/api/image/{{ key }}" target="_blank" rel="noopener">
+        <img src="/api/image/{{ key }}" alt="照片 {{ loop.index }}" loading="lazy">
+      </a>
+    {% endfor %}
   </div>
 </section>
 {% endif %}
