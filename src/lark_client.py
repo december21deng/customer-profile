@@ -171,10 +171,11 @@ def sign_jssdk(url: str) -> dict | None:
     nonce_str = secrets.token_hex(8)
     string1 = f"jsapi_ticket={ticket}&noncestr={nonce_str}&timestamp={timestamp}&url={url}"
     signature = hashlib.sha1(string1.encode("utf-8")).hexdigest()
+    # JSSDK h5sdk.config 直接吃 camelCase，前端不用再转
     return {
-        "app_id": LARK_APP_ID,
+        "appId": LARK_APP_ID,
         "timestamp": timestamp,
-        "nonce_str": nonce_str,
+        "nonceStr": nonce_str,
         "signature": signature,
     }
 
