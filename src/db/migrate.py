@@ -40,6 +40,8 @@ def _run_column_migrations(conn: sqlite3.Connection) -> int:
             ("progress_line", "TEXT NOT NULL DEFAULT ''"),
             # v0.5: 多图：JSON 数组
             ("photo_image_keys", "TEXT NOT NULL DEFAULT '[]'"),
+            # v0.7: 从 docx 里 ingest 的画板/图片（非销售手动上传）
+            ("minutes_media", "TEXT NOT NULL DEFAULT '[]'"),
         ]:
             if _add_col_if_missing(conn, "followup_records", col, decl):
                 added += 1

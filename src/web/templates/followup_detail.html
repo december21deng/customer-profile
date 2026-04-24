@@ -84,51 +84,33 @@
   </div>
 </section>
 
-{# ============ 2. 会议总结：从 docx 里抽出来的画板 + 内嵌图片 ============ #}
+{# ============ 2. 会议总结：ingest 时从 docx 抽出的画板 + 内嵌图片 ============ #}
 <section class="section">
   <h3>会议总结</h3>
-  {% if minutes_media %}
+  {% if r.minutes_media_list %}
     <div class="fd-image-gallery">
-      {% for m in minutes_media %}
-        {% if m.kind == 'image' %}
-          <a class="fd-image-cell" href="/api/docimg/{{ m.token }}" target="_blank" rel="noopener">
-            <img src="/api/docimg/{{ m.token }}" alt="会议图 {{ loop.index }}" loading="lazy">
-          </a>
-        {% elif m.kind == 'board' %}
-          <a class="fd-image-cell" href="/api/docboard/{{ m.token }}" target="_blank" rel="noopener">
-            <img src="/api/docboard/{{ m.token }}" alt="会议画板 {{ loop.index }}" loading="lazy"
-                 onerror="this.closest('.fd-image-cell').classList.add('fd-image-failed')">
-            <span class="fd-image-hint">画板（点击在飞书打开）</span>
-          </a>
-        {% endif %}
+      {% for m in r.minutes_media_list %}
+        <a class="fd-image-cell" href="/api/image/{{ m.key }}" target="_blank" rel="noopener">
+          <img src="/api/image/{{ m.key }}"
+               alt="{{ '画板' if m.kind == 'board' else '图片' }} {{ loop.index }}"
+               loading="lazy">
+          {% if m.kind == 'board' %}
+            <span class="fd-image-hint">会议画板</span>
+          {% endif %}
+        </a>
       {% endfor %}
-    </div>
-  {% elif minutes_media_error %}
-    <div class="section-hint">
-      无法读取文档块（{{ minutes_media_error }}）。权限审批后会自动显示。
     </div>
   {% else %}
     <div class="section-hint">
-      本次纪要中未找到画板或图片。
+      本次纪要中未抽取到画板或图片（权限或文档内容问题时可点「打开原文」查看）。
     </div>
   {% endif %}
 </section>
 
-{# ============ 3. 会议详情：飞书纪要原文文字部分（画板除外）============ #}
+{# ============ 3. 会议详情：只保留"打开原文 / 打开妙记"，不再本地拷贝纪要正文 ============ #}
 <section class="section">
   <h3>会议详情</h3>
-  {% if minutes_text %}
-    <div class="section-body">{{ minutes_text }}</div>
-  {% elif minutes_error %}
-    <div class="section-body muted">
-      无法读取纪要内容（{{ minutes_error }}）。请点击下方按钮在飞书中查看。
-    </div>
-  {% elif r.summary %}
-    {# 没有拉到纪要原文时，兜底展示 AI 总结，不至于完全空 #}
-    <div class="section-body">{{ r.summary }}</div>
-  {% else %}
-    <div class="section-body muted">—</div>
-  {% endif %}
+  <div class="section-hint">点击下方按钮在飞书中查看完整内容。</div>
 
   <div class="fd-link-row">
     {% if r.minutes_doc_url %}

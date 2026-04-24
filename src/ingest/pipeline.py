@@ -43,7 +43,14 @@ from claude_agent_sdk import (
 from src.config import PROJECT_ROOT
 from src.db.connection import connect, transaction
 from src.ingest import jobs, lock
-from src.lark_client import fetch_docx_raw
+from src.lark_client import (
+    fetch_docx_media,
+    fetch_docx_raw,
+    get_user_access_token,
+    stream_board_image,
+    stream_docx_image,
+)
+from src import photo_storage
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +101,11 @@ def save_raw(
 
 def fetch_and_save(
     doc_id: str, customer_id: str, meeting_date: str,
+    access_token: str | None = None,
 ) -> tuple[Path, str] | None:
-    """走应用身份 fetch_docx_raw，失败返回 None。"""
-    text, err = fetch_docx_raw(doc_id)
+    """拉飞书 docx 纯文字，落 raw markdown。access_token 为上传者的 user_access_token
+    （必有文档权限）；缺省回 tenant token（多数文档会 forBidden）。"""
+    text, err = fetch_docx_raw(doc_id, access_token=access_token)
     if err or not text:
         logger.warning("fetch_docx_raw failed: %r", err)
         return None
@@ -105,6 +114,56 @@ def fetch_and_save(
         customer_id=customer_id, meeting_date=meeting_date,
     )
     return raw_path, text
+
+
+def fetch_media_and_save(doc_id: str, access_token: str | None) -> list[dict]:
+    """把 docx 里的图片 + 画板下载到本地存储，返回 [{kind, key}] 列表。
+
+    失败 / 权限不足的条目静默跳过。全部失败返回 []。
+    画板权限未审批前画板条目会全部失败 → 该部分返回空。
+    """
+    items, err = fetch_docx_media(doc_id, access_token=access_token)
+    if err:
+        logger.warning("fetch_docx_media failed: %r (doc=%s)", err, doc_id[:12])
+        return []
+    if not items:
+        return []
+
+    result: list[dict] = []
+    for idx, it in enumerate(items):
+        kind = it["kind"]
+        tok = it["token"]
+        try:
+            if kind == "image":
+                stream, _ctype = stream_docx_image(tok, access_token=access_token)
+            elif kind == "board":
+                stream, _ctype = stream_board_image(tok, access_token=access_token)
+            else:
+                continue
+            if stream is None:
+                logger.info(
+                    "media skip (permission/fetch): doc=%s idx=%d kind=%s tok=%s…",
+                    doc_id[:12], idx, kind, tok[:8],
+                )
+                continue
+            buf = b"".join(stream)
+            if not buf:
+                continue
+            # 存本地（dev） / im/v1/images（prod），复用同一套 photo_storage
+            key = photo_storage.save(
+                buf,
+                filename=f"{kind}-{tok[:8]}.png",
+                content_type="image/png",
+            )
+            if key:
+                result.append({"kind": kind, "key": key})
+        except Exception as e:
+            logger.warning(
+                "media fetch crashed doc=%s idx=%d kind=%s: %r",
+                doc_id[:12], idx, kind, e,
+            )
+            continue
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -378,8 +437,9 @@ def _commit_sql(
     customer_id: str,
     wiki_path: Path,
     extract_result: dict,
+    minutes_media: list[dict],
 ) -> None:
-    """把 Extract 结果写回 DB（单事务）。"""
+    """把 Extract 结果 + 从 docx 拉下来的画板/图片写回 DB（单事务）。"""
     wiki_rel = str(wiki_path.relative_to(PROJECT_ROOT))
     now = datetime.now().isoformat(timespec="seconds")
 
@@ -388,12 +448,14 @@ def _commit_sql(
         with transaction(conn):
             conn.execute(
                 "UPDATE followup_records "
-                "SET summary = ?, meeting_title = ?, progress_line = ? "
+                "SET summary = ?, meeting_title = ?, progress_line = ?, "
+                "    minutes_media = ? "
                 "WHERE id = ?",
                 (
                     extract_result.get("record_summary") or "",
                     _clean_title(extract_result.get("meeting_title") or ""),
                     _clean_progress(extract_result.get("progress_line") or ""),
+                    json.dumps(minutes_media, ensure_ascii=False),
                     record_id,
                 ),
             )
@@ -429,7 +491,7 @@ def _load_record(record_id: str) -> dict | None:
         row = conn.execute(
             """
             SELECT r.id, r.customer_id, r.meeting_date, r.minutes_doc_id,
-                   r.background, c.name AS customer_name
+                   r.owner_id, r.background, c.name AS customer_name
             FROM followup_records r
             JOIN customers c ON c.id = r.customer_id
             WHERE r.id = ?
@@ -474,6 +536,17 @@ async def run(record_id: str) -> None:
         jobs.set_status(record_id, "failed", error=msg)
         return
 
+    # 拿上传者的 user_access_token（有 docx:document:readonly scope）
+    # 没拿到（如：密码登录、OAuth scope 没加、token 过期且没 refresh）→ None，
+    # fetch_docx_* 会 fallback 到 tenant token（对大部分文档会 forBidden，但至少不挂）
+    owner_user_token: str | None = None
+    owner_id = rec.get("owner_id") or ""
+    if owner_id.startswith("ou_"):
+        try:
+            owner_user_token = get_user_access_token(owner_id)
+        except Exception:
+            logger.exception("[%s] get_user_access_token failed (continue anyway)", log_prefix)
+
     # --- 串行化：同客户一把锁 + 全局并发 3 ---
     async with lock.acquire(customer_id):
         # ---- Fetch -----------------------------------------------------
@@ -484,6 +557,7 @@ async def run(record_id: str) -> None:
                 rec["minutes_doc_id"],
                 customer_id,
                 rec["meeting_date"],
+                owner_user_token,
             )
         except Exception as e:
             logger.exception("[%s] fetch crashed", log_prefix)
@@ -495,6 +569,20 @@ async def run(record_id: str) -> None:
                             error="fetch: empty response (permission or bad doc_id)")
             return
         raw_path, raw_text = fetched
+
+        # ---- Fetch media (画板 + 内嵌图片) —— 失败不阻塞 pipeline ---
+        try:
+            minutes_media = await asyncio.to_thread(
+                fetch_media_and_save,
+                rec["minutes_doc_id"],
+                owner_user_token,
+            )
+            logger.info(
+                "[%s] fetched %d media items from docx", log_prefix, len(minutes_media),
+            )
+        except Exception:
+            logger.exception("[%s] media fetch crashed (continue without media)", log_prefix)
+            minutes_media = []
 
         # ---- Ingest (agent) -------------------------------------------
         jobs.set_status(record_id, "ingesting")
@@ -530,7 +618,7 @@ async def run(record_id: str) -> None:
         try:
             await asyncio.to_thread(
                 _commit_sql,
-                record_id, customer_id, wiki_path, extract_result,
+                record_id, customer_id, wiki_path, extract_result, minutes_media,
             )
         except Exception as e:
             logger.exception("[%s] commit failed", log_prefix)

@@ -107,6 +107,7 @@ SCHEMA = [
         summary           TEXT,                   -- 详情页的长摘要（80-200 字）
         meeting_title     TEXT NOT NULL DEFAULT '',  -- 列表用，≤20 字主题
         progress_line     TEXT NOT NULL DEFAULT '',  -- 列表用，20-40 字一句话进展
+        minutes_media     TEXT NOT NULL DEFAULT '[]',  -- ingest 时抽的画板/图片，JSON: [{kind,key}]
         created_at        TEXT NOT NULL
     )
     """,

@@ -1,5 +1,8 @@
 # Wiki Log
 
+## [2026-04-24] ingest | MaiMed GmbH（UPE）客户档案（广交会二次会议）
+- Source: raw/customers/2026-04-24-11218635-5786593c.md → wiki/customers/11218635.md（新建 canonical 页；广交会 Phase 2 会议，涵盖 PS/SPC/WPC/MDF 选型决策、维持上次单价承诺、镜子/LED踢脚线/预切套装新品、样品箱计划、六安工厂大客户询问及行动项）
+
 ## [2026-04-24] ingest | MaiMed GmbH（UPE）客户档案
 - Source: raw/customers/2026-04-24-11218635-522d25c9.md → wiki/customers/11218635.md (合并完整章节版至既有页，新增 MDF 低成本结构方案、WPC 三件套打包方案、六安工厂客户 Action)
 

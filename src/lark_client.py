@@ -237,20 +237,23 @@ _docx_raw_cache: dict = {}  # {doc_id: (text, expire_at)}
 _DOCX_RAW_TTL = 300  # 5 分钟
 
 
-def fetch_docx_raw(doc_id: str) -> tuple[str | None, str | None]:
+def fetch_docx_raw(doc_id: str, access_token: str | None = None) -> tuple[str | None, str | None]:
     """拉飞书 docx 原文（纯文字，跳过富内容）。进程内缓存 5 分钟。
 
     返回 (raw_text, error)。err 非 None 时 raw_text 为 None。
-    需要权限：docx:document:readonly。
+    需要权限：docx:document:readonly + 调用者对该文档有读权限。
+
+    access_token 若传入则用（推荐 user_access_token：调用者身份必有文档权限）；
+    None 时 fallback 到 tenant_access_token（app 身份，多数文档会 forBidden）。
     """
     now = time.time()
     cached = _docx_raw_cache.get(doc_id)
     if cached and cached[1] > now:
         return cached[0], None
 
-    token = _get_tenant_token()
+    token = access_token or _get_tenant_token()
     if not token:
-        return None, "tenant_token_failed"
+        return None, "no_token"
 
     resp = http_requests.get(
         f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/raw_content",
@@ -361,12 +364,14 @@ BLOCK_TYPE_IMAGE = 27
 BLOCK_TYPE_BOARD = 43
 
 
-def fetch_docx_media(doc_id: str) -> tuple[list[dict], str | None]:
+def fetch_docx_media(doc_id: str, access_token: str | None = None) -> tuple[list[dict], str | None]:
     """遍历 docx 所有 block，按文档顺序返回图片 + 画板的 token 列表。
 
     每个 item: {"kind": "image"|"board", "token": "<file_or_whiteboard_token>"}
     返回 (items, error)。permission 不够时 error 非 None，items=[]。
 
+    access_token：推荐传上传者的 user_access_token（他对文档必有权限）。
+    缺省回到 tenant token（app 身份，多数文档会 forBidden）。
     进程内缓存 5 分钟。
     """
     now = time.time()
@@ -374,9 +379,9 @@ def fetch_docx_media(doc_id: str) -> tuple[list[dict], str | None]:
     if cached and cached[1] > now:
         return cached[0], None
 
-    token = _get_tenant_token()
+    token = access_token or _get_tenant_token()
     if not token:
-        return [], "tenant_token_failed"
+        return [], "no_token"
 
     items: list[dict] = []
     page_token = ""
@@ -426,13 +431,13 @@ def fetch_docx_media(doc_id: str) -> tuple[list[dict], str | None]:
     return items, None
 
 
-def stream_docx_image(file_token: str):
+def stream_docx_image(file_token: str, access_token: str | None = None):
     """拉 docx 内嵌的图片（drive/v1/medias/{token}/download）。
 
     返回 (iterator, content_type) 或 (None, None)。
-    需要权限：drive:drive （或更细粒度 drive:file:readonly）。
+    access_token：推荐 user_access_token（文档拥有者身份），否则 tenant fallback。
     """
-    token = _get_tenant_token()
+    token = access_token or _get_tenant_token()
     if not token:
         return None, None
 
@@ -452,14 +457,16 @@ def stream_docx_image(file_token: str):
     return resp.iter_content(chunk_size=8192), ctype
 
 
-def stream_board_image(whiteboard_token: str):
+def stream_board_image(whiteboard_token: str, access_token: str | None = None):
     """把画板（whiteboard/画布）导出为 PNG 返回。
 
-    目前飞书 API 路径：POST /open-apis/board/v1/whiteboards/{id}/download_as_image
-    权限：board:whiteboard:node:read （审批中）。
-    审批前这里会返回 None → 前端落到占位提示。
+    飞书 API 路径：GET /open-apis/board/v1/whiteboards/{id}/download_as_image
+    权限：board:whiteboard:node:read + board:whiteboard:node:content:read （审批中）。
+    审批前这里会返回 None → 调用方忽略该条目。
+
+    access_token：推荐 user_access_token；tenant fallback 对绝大多数画板也会 403。
     """
-    token = _get_tenant_token()
+    token = access_token or _get_tenant_token()
     if not token:
         return None, None
 

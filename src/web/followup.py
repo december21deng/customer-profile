@@ -24,13 +24,9 @@ from fastapi.templating import Jinja2Templates
 from src.db.connection import connect, transaction
 from src.ingest.pipeline import run as run_ingest_pipeline
 from src.lark_client import (
-    fetch_docx_media,
-    fetch_docx_raw,
     get_user_access_token,
     search_feishu_users,
     sign_jssdk,
-    stream_board_image,
-    stream_docx_image,
 )
 from src.web.auth import require_csrf_form
 from src import photo_storage
@@ -363,16 +359,8 @@ def followup_detail(request: Request, record_id: str):
     if not photo_keys and r.get("photo_image_key"):
         photo_keys = [r["photo_image_key"]]
     r["photo_keys"] = photo_keys
-
-    # 尝试拉纪要文字（权限未开通时 error 非 None）
-    minutes_text = None
-    minutes_error = None
-    minutes_media: list[dict] = []
-    minutes_media_error: str | None = None
-    if r.get("minutes_doc_id"):
-        minutes_text, minutes_error = fetch_docx_raw(r["minutes_doc_id"])
-        # 会议总结：拉画板 + 内嵌图片（block 接口，权限同 raw_content；画板导出权限单独审批中）
-        minutes_media, minutes_media_error = fetch_docx_media(r["minutes_doc_id"])
+    # 从 docx ingest 时物化到本地的画板 / 图片（{kind, key} 列表）
+    r["minutes_media_list"] = _safe_json_list(r.get("minutes_media"))
 
     owner_name = (
         r.get("crm_owner_name")
@@ -391,10 +379,6 @@ def followup_detail(request: Request, record_id: str):
             "date_display": _format_meeting_date(r.get("meeting_date")),
             "owner_name": owner_name,
             "owner_avatar": owner_avatar,
-            "minutes_text": minutes_text,
-            "minutes_error": minutes_error,
-            "minutes_media": minutes_media,
-            "minutes_media_error": minutes_media_error,
         },
     )
 
@@ -481,38 +465,4 @@ def proxy_image(image_key: str):
         it,
         media_type=ctype,
         headers={"Cache-Control": "private, max-age=86400"},
-    )
-
-
-# 飞书 file_token / whiteboard_token 都是 base62 风格
-_DOC_TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{16,64}$")
-
-
-@router.get("/api/docimg/{file_token}")
-def proxy_docx_image(file_token: str):
-    """代理 docx 内嵌图片（drive/v1/medias）。"""
-    if not _DOC_TOKEN_RE.match(file_token):
-        raise HTTPException(status_code=400, detail="invalid token")
-    it, ctype = stream_docx_image(file_token)
-    if it is None:
-        raise HTTPException(status_code=502, detail="fetch failed")
-    return StreamingResponse(
-        it,
-        media_type=ctype,
-        headers={"Cache-Control": "private, max-age=3600"},
-    )
-
-
-@router.get("/api/docboard/{whiteboard_token}")
-def proxy_docx_board(whiteboard_token: str):
-    """代理 docx 里的画板，导出成 PNG 返回。权限审批前会 502。"""
-    if not _DOC_TOKEN_RE.match(whiteboard_token):
-        raise HTTPException(status_code=400, detail="invalid token")
-    it, ctype = stream_board_image(whiteboard_token)
-    if it is None:
-        raise HTTPException(status_code=502, detail="board export unavailable")
-    return StreamingResponse(
-        it,
-        media_type=ctype,
-        headers={"Cache-Control": "private, max-age=3600"},
     )
