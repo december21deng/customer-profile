@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from src.db.connection import connect, transaction
@@ -507,13 +507,21 @@ def jssdk_config(url: str):
     """前端传当前页面 URL，返回 h5sdk.config 需要的签名参数。
 
     URL 需 去 hash；前端传 location.href.split('#')[0] 即可。
+    响应必须 no-store —— 每次签名只能用一次（飞书会判重 333443）。
     """
     if not (url.startswith("http://") or url.startswith("https://")):
         raise HTTPException(status_code=400, detail="invalid url")
     cfg = sign_jssdk(url)
     if cfg is None:
         raise HTTPException(status_code=502, detail="failed to sign jssdk config")
-    return cfg
+    # 防止浏览器 / CDN / 中间层缓存 —— 每次必须拿新的签名
+    return JSONResponse(
+        content=cfg,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, private",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 # ---- 妙记 picker 代理接口 --------------------------------------------

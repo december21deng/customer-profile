@@ -1393,7 +1393,10 @@
       return;
     }
     var href = location.href.split('#')[0];
-    fetch('/api/jssdk/config?url=' + encodeURIComponent(href), { credentials: 'same-origin' })
+    // 加 _t 防止任何层面的缓存；每次签名只能用一次（飞书 333443）
+    var cfgUrl = '/api/jssdk/config?url=' + encodeURIComponent(href) +
+                 '&_t=' + Date.now();
+    fetch(cfgUrl, { credentials: 'same-origin', cache: 'no-store' })
       .then(function(r) {
         if (!r.ok) throw new Error('config_http_' + r.status);
         return r.json();
