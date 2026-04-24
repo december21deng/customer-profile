@@ -269,7 +269,7 @@ def _format_meeting_date_parts(s: str | None) -> dict:
 
 
 def _parse_our_people(raw: str | None) -> list[dict]:
-    """our_attendees JSON → [{name, avatar, initial}, ...]."""
+    """our_attendees JSON → [{id, name, avatar, initial}, ...]."""
     if not raw:
         return []
     try:
@@ -285,6 +285,7 @@ def _parse_our_people(raw: str | None) -> list[dict]:
             if not name:
                 continue
             out.append({
+                "id": it.get("id") or it.get("open_id") or "",
                 "name": name,
                 "avatar": it.get("avatar") or "",
                 "initial": name[:1],
@@ -292,8 +293,37 @@ def _parse_our_people(raw: str | None) -> list[dict]:
         elif isinstance(it, str):
             s = it.strip()
             if s:
-                out.append({"name": s, "avatar": "", "initial": s[:1]})
+                out.append({"id": "", "name": s, "avatar": "", "initial": s[:1]})
     return out
+
+
+def _backfill_avatars(decorated_rows: list[dict]) -> None:
+    """存量 followup_records 的 our_attendees JSON 里很多 avatar 是空串
+    （旧 /api/users/search 路径 bug），从 user_tokens.avatar 按 open_id 补回来。"""
+    needed_ids: set[str] = set()
+    for d in decorated_rows:
+        for p in d.get("our_people") or []:
+            if p.get("id") and not p.get("avatar"):
+                needed_ids.add(p["id"])
+    if not needed_ids:
+        return
+    id_list = list(needed_ids)
+    placeholders = ",".join("?" * len(id_list))
+    conn = connect()
+    try:
+        rows = conn.execute(
+            f"SELECT open_id, avatar FROM user_tokens WHERE open_id IN ({placeholders})",
+            id_list,
+        ).fetchall()
+    finally:
+        conn.close()
+    lookup = {r["open_id"]: r["avatar"] for r in rows if r["avatar"]}
+    if not lookup:
+        return
+    for d in decorated_rows:
+        for p in d.get("our_people") or []:
+            if not p.get("avatar") and p.get("id") in lookup:
+                p["avatar"] = lookup[p["id"]]
 
 
 def _parse_attendee_names(raw: str | None) -> list[str]:
@@ -348,6 +378,7 @@ def _decorate_followups(rows: list[dict]) -> list[dict]:
         else:
             d["ai_state"] = "done"
         out.append(d)
+    _backfill_avatars(out)
     return out
 
 

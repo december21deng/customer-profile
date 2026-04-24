@@ -406,7 +406,8 @@ def _format_meeting_date_parts(s: str | None) -> dict:
 
 
 def _parse_our_people_detail(our_attendees_raw: str | None) -> list[dict]:
-    """our_attendees JSON → [{name, avatar, initial}, ...]. 详情页复用。"""
+    """our_attendees JSON → [{id, name, avatar, initial}, ...]. 详情页复用。
+    avatar 为空时从 user_tokens.avatar 按 open_id 补回（存量 bug backfill）。"""
     if not our_attendees_raw:
         return []
     try:
@@ -422,6 +423,7 @@ def _parse_our_people_detail(our_attendees_raw: str | None) -> list[dict]:
             if not name:
                 continue
             out.append({
+                "id": it.get("id") or it.get("open_id") or "",
                 "name": name,
                 "avatar": it.get("avatar") or "",
                 "initial": name[:1],
@@ -429,7 +431,23 @@ def _parse_our_people_detail(our_attendees_raw: str | None) -> list[dict]:
         elif isinstance(it, str):
             s = it.strip()
             if s:
-                out.append({"name": s, "avatar": "", "initial": s[:1]})
+                out.append({"id": "", "name": s, "avatar": "", "initial": s[:1]})
+    # backfill from user_tokens
+    needed = [p["id"] for p in out if p["id"] and not p["avatar"]]
+    if needed:
+        conn = connect()
+        try:
+            placeholders = ",".join("?" * len(needed))
+            rows = conn.execute(
+                f"SELECT open_id, avatar FROM user_tokens WHERE open_id IN ({placeholders})",
+                needed,
+            ).fetchall()
+        finally:
+            conn.close()
+        lookup = {r["open_id"]: r["avatar"] for r in rows if r["avatar"]}
+        for p in out:
+            if not p["avatar"] and p["id"] in lookup:
+                p["avatar"] = lookup[p["id"]]
     return out
 
 
@@ -567,11 +585,21 @@ def users_search(request: Request, q: str = "", limit: int = 20):
             )
             if looks_like_real_name:
                 sub = en
+        # avatar 可能来自两种 shape：
+        #  - /search/v1/user 旧端点：扁平 {avatar_url: "..."}
+        #  - /contact/v3/* 新端点：嵌套 {avatar: {avatar_72: "..."}}
+        av = u.get("avatar")
+        if isinstance(av, dict):
+            avatar_url = av.get("avatar_72") or av.get("avatar_origin") or av.get("avatar_url") or ""
+        elif isinstance(av, str):
+            avatar_url = av
+        else:
+            avatar_url = u.get("avatar_url") or ""
         items.append({
             "id": oid,
             "name": name,
             "sub": sub,
-            "avatar": (u.get("avatar") or {}).get("avatar_72") or "",
+            "avatar": avatar_url,
         })
     return {"items": items}
 
