@@ -37,6 +37,20 @@
   </div>
 </div>
 
+{# 用户的 user_access_token 失效（access 过期 + refresh 也没了）→ 挂提示 #}
+{% if r.needs_reauth %}
+<div class="notice-banner">
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  <span>部分文档信息需要重新授权查看</span>
+  <a class="notice-banner-action" href="/auth/lark?next=/followup/{{ r.id }}">重新登录</a>
+</div>
+{% endif %}
+
 {# ============ 1. 沟通内容总结 ============ #}
 <section class="fd-sec">
   <div class="fd-sec-header">

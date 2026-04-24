@@ -408,6 +408,18 @@ def _format_meeting_date_parts(s: str | None) -> dict:
     }
 
 
+def _needs_reauth(request) -> bool:
+    """用户 cookie 有效（已登录），但 user_access_token 不可恢复。
+    典型场景：access_token 过期 + refresh_token 也过期/为空。
+    这种情况下拉飞书 API 的字段（文档标题 / 妙记元信息）都会失败，
+    需要引导用户重新 OAuth 授权。"""
+    open_id = getattr(request.state, "uid", "") or ""
+    # 密码登录（uid != ou_*）不走 OAuth，没有 user_access_token 概念
+    if not open_id.startswith("ou_"):
+        return False
+    return get_user_access_token(open_id) is None
+
+
 def _lookup_doc_title(url: str | None, request, *, kind: str) -> str | None:
     """实时拉 docx / wiki / minute 标题。kind: 'doc' | 'minute'。
 
@@ -586,6 +598,11 @@ def followup_detail(request: Request, record_id: str):
     )
     r["transcript_title"] = _lookup_doc_title(
         r.get("transcript_url"), request, kind="minute",
+    )
+    # user_access_token 失效检测：用户 cookie 还在（uid 是 ou_），但 token
+    # 已过期且 refresh_token 也失效 → 挂个提示让用户主动重新登录
+    r["needs_reauth"] = _needs_reauth(request) and bool(
+        r.get("minutes_doc_url") or r.get("transcript_url")
     )
 
     # 总参会人数（hero meta pill）
