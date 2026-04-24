@@ -1761,35 +1761,29 @@
   }
   .fd-link:active { opacity: 0.7; }
 
-  /* Rich preview（关联原文 / 关联妙记）*/
+  /* Rich preview（关联原文 / 关联妙记）—— 单行紧凑 */
   .fd-rich-link {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px 4px 6px;
     background: var(--neutral-50);
     border: 1px solid var(--neutral-100);
-    border-radius: 8px;
+    border-radius: 6px;
     text-decoration: none; color: inherit;
     max-width: 100%;
+    min-width: 0;
   }
   .fd-rich-link:active { background: var(--neutral-100); }
   .fd-rich-icon {
-    width: 36px; height: 36px;
-    flex-shrink: 0;
-    border-radius: 6px;
-    background: var(--surface);
     display: inline-flex;
     align-items: center; justify-content: center;
     color: var(--blue-600);
+    flex-shrink: 0;
   }
-  .fd-rich-body { flex: 1; min-width: 0; }
   .fd-rich-title {
-    font-size: 14px; font-weight: 500;
+    font-size: 14px;
     color: var(--neutral-900);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .fd-rich-sub {
-    font-size: 12px; color: var(--neutral-500);
-    margin-top: 2px;
+    min-width: 0;
   }
 
   /* Photos grid */

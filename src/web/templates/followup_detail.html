@@ -61,34 +61,7 @@
   </div>
 </section>
 
-{# ============ 2. 关联业务信息 ============ #}
-<section class="fd-sec">
-  <div class="fd-sec-header">
-    <span class="fd-sec-bar"></span>
-    <h2 class="fd-sec-title">关联业务信息</h2>
-  </div>
-  <div class="fd-sec-body fd-kv">
-    <div class="fd-kv-k">记录人</div>
-    <div class="fd-kv-v">
-      <span class="fd-person">
-        {% if owner_avatar %}
-          <span class="fd-av"><img src="{{ owner_avatar }}" alt="{{ (owner_name or '?')[:1] }}"
-               onerror="this.parentNode.textContent='{{ (owner_name or '?')[:1] }}'"></span>
-        {% else %}
-          <span class="fd-av">{{ (owner_name or '?')[:1] }}</span>
-        {% endif %}
-        <span>{{ owner_name or '—' }}</span>
-      </span>
-    </div>
-
-    <div class="fd-kv-k">跟进客户</div>
-    <div class="fd-kv-v">
-      <a href="/customers/{{ r.customer_id }}" class="fd-link">{{ r.customer_name }}</a>
-    </div>
-  </div>
-</section>
-
-{# ============ 3. 参会信息 ============ #}
+{# ============ 2. 参会信息 ============ #}
 <section class="fd-sec">
   <div class="fd-sec-header">
     <span class="fd-sec-bar"></span>
@@ -193,17 +166,14 @@
       <div class="fd-kv-v">
         <a class="fd-rich-link" href="{{ r.minutes_doc_url }}" target="_blank" rel="noopener">
           <span class="fd-rich-icon">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
                  stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
           </span>
-          <div class="fd-rich-body">
-            <div class="fd-rich-title">会议纪要文档</div>
-            <div class="fd-rich-sub">飞书文档</div>
-          </div>
+          <span class="fd-rich-title">{{ r.minutes_title or '会议纪要' }}</span>
         </a>
       </div>
     {% endif %}
@@ -213,7 +183,7 @@
       <div class="fd-kv-v">
         <a class="fd-rich-link" href="{{ r.transcript_url }}" target="_blank" rel="noopener">
           <span class="fd-rich-icon">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
                  stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -221,10 +191,7 @@
               <line x1="12" y1="19" x2="12" y2="23"/>
             </svg>
           </span>
-          <div class="fd-rich-body">
-            <div class="fd-rich-title">录音转写</div>
-            <div class="fd-rich-sub">飞书妙记</div>
-          </div>
+          <span class="fd-rich-title">{{ r.transcript_title or '录音转写' }}</span>
         </a>
       </div>
     {% endif %}
