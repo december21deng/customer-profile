@@ -1209,9 +1209,9 @@
   }
   .minutes-more:active { background: var(--neutral-50); }
 
-  /* 妙记验证卡片：粘贴 URL 后 hydrate 的 title/duration/date */
-  .minutes-card {
-    margin-top: 10px;
+  /* 已选卡片（妙记 / 会议纪要 通用）：hydrate 后替换按钮 */
+  .selected-card {
+    margin-top: 0;
     padding: 12px 14px;
     border: 1px solid var(--neutral-200);
     border-radius: 10px;
@@ -1219,23 +1219,33 @@
     display: flex; align-items: center; gap: 12px;
     min-height: 46px;
   }
-  .minutes-card.error {
+  .selected-card.error {
     background: #FFF1F0;
     border-color: #FFCCC7;
   }
-  .minutes-card .m-card-icon { font-size: 18px; flex-shrink: 0; }
-  .minutes-card .m-card-body { flex: 1; min-width: 0; }
-  .minutes-card .m-card-title {
+  .selected-card .m-card-icon { font-size: 18px; flex-shrink: 0; }
+  .selected-card .m-card-body { flex: 1; min-width: 0; }
+  .selected-card .m-card-title {
     font-size: 14px; color: var(--neutral-900); font-weight: 500;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .minutes-card .m-card-meta {
+  .selected-card .m-card-meta {
     margin-top: 2px;
     font-size: 12px; color: var(--neutral-400);
   }
-  .minutes-card .m-card-ok { color: #52C41A; font-size: 13px; flex-shrink: 0; }
-  .minutes-card .m-card-err { color: #E54545; font-size: 13px; }
-  .minutes-card .m-card-hint { color: var(--neutral-400); font-size: 13px; }
+  .selected-card .m-card-ok   { color: #52C41A; font-size: 13px; flex-shrink: 0; }
+  .selected-card .m-card-err  { color: #E54545; font-size: 13px; flex-shrink: 0; }
+  .selected-card .m-card-hint { color: var(--neutral-400); font-size: 13px; flex-shrink: 0; }
+  .selected-card .m-card-reselect {
+    border: 0;
+    background: transparent;
+    color: var(--blue-600);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+  .selected-card .m-card-reselect:active { opacity: 0.6; }
 
   /* 会议时间：日期一行 + 两个时间一行，中间"至" */
   .time-range {
@@ -1318,5 +1328,55 @@
 </head>
 <body>
   <div class="wrap">{% block body %}{% endblock %}</div>
+
+  <!-- 飞书 H5 JSSDK：仅在飞书客户端里 script 标签对应的全局对象才会被注入 -->
+  <!-- 浏览器里脚本 404 也没事，后面的 h5sdk.ready 调用自然 no-op -->
+  <script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.30.js"
+          crossorigin="anonymous"></script>
+  <script>
+  (function() {
+    // JSSDK 未加载（浏览器环境 / 加载失败）→ 直接 no-op 不报错
+    if (typeof window.h5sdk === 'undefined') {
+      window.__feishuReady = Promise.reject(new Error('h5sdk_not_loaded'));
+      return;
+    }
+    // 用服务端签名初始化；成功后 h5sdk.ready 回调里才能用 tt.xxx
+    window.__feishuReady = new Promise(function(resolve, reject) {
+      var href = location.href.split('#')[0];
+      fetch('/api/jssdk/config?url=' + encodeURIComponent(href), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(cfg) {
+          if (!cfg || !cfg.appId) { reject(new Error('no_jssdk_config')); return; }
+          h5sdk.config({
+            appId: cfg.appId,
+            timestamp: cfg.timestamp,
+            nonceStr: cfg.nonceStr,
+            signature: cfg.signature,
+            // 必须声明将要用到的 JSAPI，否则调用会 "ApiName is not in jsApiList"
+            jsApiList: [
+              'chooseContact',
+              'docsPicker',
+              'getSystemInfo',
+            ],
+            onSuccess: function() {
+              h5sdk.ready(function() { resolve(); });
+            },
+            onFail: function(err) {
+              console.error('h5sdk.config onFail:', err);
+              reject(err);
+            },
+          });
+          // h5sdk.error 的兜底
+          h5sdk.error(function(err) {
+            console.error('h5sdk.error:', err);
+          });
+        })
+        .catch(function(err) {
+          console.error('fetch jssdk config failed:', err);
+          reject(err);
+        });
+    });
+  })();
+  </script>
 </body>
 </html>

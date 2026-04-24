@@ -22,26 +22,29 @@
 
   <div class="form-section">
     <div class="form-field">
-      <label class="form-label" for="f-transcript">
+      <label class="form-label">
         妙记<span class="req">*</span>
       </label>
+
+      <!-- 未选状态：只有按钮 -->
       <button type="button" class="picker-native-btn" id="minutes-picker-btn">
         <span class="picker-native-icon">🔍</span>
         <span>选择妙记</span>
       </button>
-      <div class="picker-or-sep">或粘贴链接：</div>
-      <div class="input-with-status">
-        <input class="form-input" id="f-transcript" name="transcript_url" type="url"
-               placeholder="https://xxx.feishu.cn/minutes/..."
-               value="{{ values.transcript_url or '' }}" required>
-        <span class="input-status" id="f-transcript-status" hidden></span>
-      </div>
-      <div class="minutes-card" id="minutes-card" hidden></div>
+
+      <!-- 已选状态：显示卡片 + 重选按钮 -->
+      <div class="selected-card" id="minutes-card" hidden></div>
+
+      <!-- 提交时带的是 URL -->
+      <input type="hidden" id="f-transcript" name="transcript_url"
+             value="{{ values.transcript_url or '' }}">
+      <span class="input-status" id="f-transcript-status" hidden></span>
+
       {% if errors.transcript_url %}
         <div class="form-error">{{ errors.transcript_url }}</div>
       {% endif %}
 
-      <!-- 自研妙记 picker 浮层（Feishu & 浏览器都用同一套） -->
+      <!-- 自研妙记 picker 全屏浮层 -->
       <div class="minutes-panel" id="minutes-panel" hidden>
         <div class="minutes-panel-head">
           <input type="text" class="picker-search" id="minutes-search"
@@ -57,23 +60,29 @@
     </div>
 
     <div class="form-field">
-      <label class="form-label" for="f-minutes">
+      <label class="form-label">
         会议纪要<span class="req">*</span>
       </label>
-      <button type="button" class="picker-native-btn" id="docs-picker-btn" hidden>
+
+      <!-- 未选状态：按钮 -->
+      <button type="button" class="picker-native-btn" id="docs-picker-btn">
         <span class="picker-native-icon">📁</span>
         <span>选择会议纪要</span>
       </button>
-      <div class="picker-or-sep" id="docs-or-sep" hidden>或粘贴链接：</div>
-      <div class="input-with-status">
-        <input class="form-input" id="f-minutes" name="minutes_url" type="url"
-               placeholder="粘贴飞书会议纪要链接（docx / wiki）"
-               value="{{ values.minutes_url or '' }}" required>
-        <span class="input-status" id="f-minutes-status" hidden></span>
-      </div>
+
+      <!-- 已选状态：卡片 + 重选 -->
+      <div class="selected-card" id="docs-card" hidden></div>
+
+      <!-- 提交时带 URL -->
+      <input type="hidden" id="f-minutes" name="minutes_url"
+             value="{{ values.minutes_url or '' }}">
+      <span class="input-status" id="f-minutes-status" hidden></span>
+
+      <!-- 浏览器 hint（只在 SDK 不可用时显示）-->
       <div class="picker-env-hint" id="docs-env-hint" hidden>
-        ⓘ 在飞书客户端内可直接点击选择
+        ⓘ 请在飞书客户端内打开以选择会议纪要
       </div>
+
       {% if errors.minutes_url %}
         <div class="form-error">{{ errors.minutes_url }}</div>
       {% endif %}
@@ -85,13 +94,22 @@
       </label>
       <div class="time-range">
         <input class="form-input tr-date" id="f-date" name="meeting_date"
-               type="date" value="{{ values.meeting_date or '' }}" required>
+               type="text" inputmode="numeric"
+               placeholder="2026-04-24" maxlength="10"
+               pattern="\d{4}-\d{2}-\d{2}"
+               value="{{ values.meeting_date or '' }}" required>
         <div class="tr-times">
           <input class="form-input tr-time" id="f-start" name="meeting_start_time"
-                 type="time" value="{{ values.meeting_start_time or '' }}" required>
-          <span class="tr-sep">至</span>
+                 type="text" inputmode="numeric"
+                 placeholder="09:00" maxlength="5"
+                 pattern="\d{2}:\d{2}"
+                 value="{{ values.meeting_start_time or '' }}" required>
+          <span class="tr-sep">—</span>
           <input class="form-input tr-time" id="f-end" name="meeting_end_time"
-                 type="time" value="{{ values.meeting_end_time or '' }}" required>
+                 type="text" inputmode="numeric"
+                 placeholder="10:30" maxlength="5"
+                 pattern="\d{2}:\d{2}"
+                 value="{{ values.meeting_end_time or '' }}" required>
         </div>
       </div>
       {% if errors.meeting_date %}
@@ -447,84 +465,114 @@
       if (!pickAnchor.contains(e.target)) hidePanel();
     });
 
-    // -------- 环境检测：是否在飞书客户端内 -----------------------
-    // window.h5sdk + window.tt 都存在才算飞书；否则是普通浏览器
-    var isFeishuClient = (typeof window.h5sdk !== 'undefined') && (typeof window.tt !== 'undefined');
-
-    // -------- 我方参会人员：飞书原生多选（tt.chooseContact）------
-    // 飞书里：优先显示"选择同事（多选）"按钮；点它弹飞书原生面板一次选多人
-    // 浏览器里：继续用上面已有的自研搜索面板
-    var ourNativeBtn = document.getElementById('our-native-btn');
-    if (isFeishuClient && typeof tt.chooseContact === 'function') {
-      ourNativeBtn.hidden = false;
-      pickBtn.hidden = true;
-
-      ourNativeBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        var chosenIds = ourState.map(function(p) { return p.id; }).filter(Boolean);
-        tt.chooseContact({
-          multi: true,
-          externalContact: false,
-          enableChooseDepartment: false,
-          chosenIds: chosenIds,
-          success: function(res) {
-            var picked = (res && res.data) || [];
-            picked.forEach(function(u) {
-              var oid = u.openId || u.open_id;
-              if (!oid) return;
-              if (ourState.some(function(p) { return p.id === oid; })) return;
-              var avatar = '';
-              if (u.avatarUrls) {
-                // 飞书可能返 object 或 array
-                avatar = u.avatarUrls['72'] || u.avatarUrls.avatar_72
-                       || u.avatarUrls['middle'] || u.avatarUrls['thumb'] || '';
-              }
-              ourState.push({ id: oid, name: u.name || '?', avatar: avatar });
-            });
-            ourCtl.sync();
-          },
-          fail: function(err) {
-            console.error('chooseContact failed:', err);
-            alert('选择同事失败：' + (err && err.errMsg ? err.errMsg : '未知错误'));
-          },
+    // -------- 时间输入：纯文本 + 自动补分隔符 --------------------
+    // 浏览器原生 date/time picker 图标太丑，换成 text + inputmode=numeric
+    // 打字时自动补 "-" / ":"，体验比手打格式符好
+    (function() {
+      function attachDateAutoFormat(el) {
+        el.addEventListener('input', function() {
+          var v = el.value.replace(/[^\d]/g, '').slice(0, 8);
+          var out = v.slice(0, 4);
+          if (v.length > 4) out += '-' + v.slice(4, 6);
+          if (v.length > 6) out += '-' + v.slice(6, 8);
+          el.value = out;
         });
-      });
-    }
+      }
+      function attachTimeAutoFormat(el) {
+        el.addEventListener('input', function() {
+          var v = el.value.replace(/[^\d]/g, '').slice(0, 4);
+          var out = v.slice(0, 2);
+          if (v.length > 2) out += ':' + v.slice(2, 4);
+          el.value = out;
+        });
+      }
+      var df = document.getElementById('f-date');
+      var sf = document.getElementById('f-start');
+      var ef = document.getElementById('f-end');
+      if (df) attachDateAutoFormat(df);
+      if (sf) attachTimeAutoFormat(sf);
+      if (ef) attachTimeAutoFormat(ef);
+    })();
 
-    // -------- 会议纪要：tt.docsPicker（飞书原生选文档）------------
+    // -------- 飞书 H5 JSSDK 初始化（base.html 已经加载 + 签名）----
+    // window.__feishuReady 是一个 Promise：resolve = SDK 可用；reject = 浏览器/加载失败
+    // 我们等它 resolve 后再显示原生按钮
+    var ourNativeBtn  = document.getElementById('our-native-btn');
     var docsPickerBtn = document.getElementById('docs-picker-btn');
-    var docsOrSep    = document.getElementById('docs-or-sep');
     var docsEnvHint  = document.getElementById('docs-env-hint');
-    if (isFeishuClient && typeof tt.docsPicker === 'function') {
-      docsPickerBtn.hidden = false;
-      docsOrSep.hidden = false;
 
-      docsPickerBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        tt.docsPicker({
-          success: function(res) {
-            var list = (res && res.fileList) || [];
-            if (list.length === 0) return;
-            var url = list[0].filePath || '';
-            // 类型校验：只接受 docx / wiki
-            var ok = /\/(docx|wiki|docs)\//.test(url);
-            var minutesInput = document.getElementById('f-minutes');
-            if (!ok) {
-              alert('请选择会议纪要文档（支持 docx / wiki，不支持表格/多维表等）');
-              return;
-            }
-            minutesInput.value = url;
-            // 复用已有的校验逻辑让状态条变绿
-            checkMinutes();
-          },
-          fail: function(err) {
-            console.error('docsPicker failed:', err);
-          },
-        });
+    // 浏览器 fallback：先假设不在飞书，显示浏览器版的 UI
+    docsEnvHint.hidden = false;
+
+    (window.__feishuReady || Promise.reject(new Error('no_feishu')))
+      .then(function() {
+        // h5sdk 已 config 成功，检查 tt.* 方法是否存在
+        // （老版本飞书 chooseContact 可能没有，兜底保留原 fallback）
+
+        // -------- 我方参会：chooseContact（飞书原生多选）--------
+        if (typeof tt !== 'undefined' && typeof tt.chooseContact === 'function') {
+          ourNativeBtn.hidden = false;
+          pickBtn.hidden = true;
+          ourNativeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var chosenIds = ourState.map(function(p) { return p.id; }).filter(Boolean);
+            tt.chooseContact({
+              multi: true,
+              externalContact: false,
+              enableChooseDepartment: false,
+              chosenIds: chosenIds,
+              success: function(res) {
+                var picked = (res && res.data) || [];
+                picked.forEach(function(u) {
+                  var oid = u.openId || u.open_id;
+                  if (!oid) return;
+                  if (ourState.some(function(p) { return p.id === oid; })) return;
+                  var avatar = '';
+                  if (u.avatarUrls) {
+                    avatar = u.avatarUrls['72'] || u.avatarUrls.avatar_72
+                           || u.avatarUrls['middle'] || u.avatarUrls['thumb'] || '';
+                  }
+                  ourState.push({ id: oid, name: u.name || '?', avatar: avatar });
+                });
+                ourCtl.sync();
+              },
+              fail: function(err) {
+                console.error('chooseContact failed:', err);
+                alert('选择同事失败：' + (err && err.errMsg ? err.errMsg : '未知错误'));
+              },
+            });
+          });
+        }
+
+        // -------- 会议纪要：docsPicker（飞书原生选文档）----------
+        if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
+          docsEnvHint.hidden = true;
+          docsPickerBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            tt.docsPicker({
+              success: function(res) {
+                var list = (res && res.fileList) || [];
+                if (list.length === 0) return;
+                var url = list[0].filePath || '';
+                var name = list[0].fileName || '会议纪要';
+                var ok = /\/(docx|wiki|docs)\//.test(url);
+                if (!ok) {
+                  alert('请选择会议纪要文档（支持 docx / wiki，不支持表格/多维表等）');
+                  return;
+                }
+                onDocsPick({ url: url, title: name });
+              },
+              fail: function(err) {
+                console.error('docsPicker failed:', err);
+              },
+            });
+          });
+        }
+      })
+      .catch(function(err) {
+        // 浏览器 / SDK 加载失败 / 配置失败，什么也不做，保持原 fallback UI
+        console.info('feishu h5sdk not available:', err && err.message);
       });
-    } else {
-      docsEnvHint.hidden = false;
-    }
 
     // -------- 妙记：自研 picker（调 /api/minutes/search）+ 验证卡片 -----
     var minutesBtn   = document.getElementById('minutes-picker-btn');
@@ -588,6 +636,7 @@
         el.className = 'minutes-picker-item';
         el.setAttribute('data-url', it.url || '');
         el.setAttribute('data-token', it.token || '');
+        el.setAttribute('data-title', it.title || '');
         var titleLine = '<div class="m-title">' + escMin(it.title || '未命名') + '</div>';
         var metaLine = '';
         if (it.description) {
@@ -667,11 +716,10 @@
       var btn = e.target.closest('.minutes-picker-item');
       if (!btn) return;
       var url = btn.getAttribute('data-url') || '';
+      var title = btn.getAttribute('data-title') || '';
       if (!url) return;
-      minutesInputEl.value = url;
       minutesHidePanel();
-      checkTranscript();
-      refreshMinutesCard(url);
+      onMinutesPick({ url: url, title: title });
     });
     document.addEventListener('click', function(e) {
       if (minutesPanel.hidden) return;
@@ -680,55 +728,121 @@
       minutesHidePanel();
     });
 
-    // ---- 妙记验证卡片（粘贴 URL 后 debounce 调 meta API）----------
-    var cardTimer = null;
-    function refreshMinutesCard(url) {
+    // ---- 妙记：选中后卡片替换按钮；卡片上有"重选" --------------
+    function clearMinutesSelection() {
+      minutesInputEl.value = '';
+      minutesCard.hidden = true;
+      minutesCard.innerHTML = '';
+      minutesCard.classList.remove('error');
+      minutesBtn.hidden = false;
+    }
+
+    function renderMinutesSelected(title, metaStr, state) {
+      // state: 'ok' | 'error' | 'loading'
+      minutesCard.classList.toggle('error', state === 'error');
+      var right = state === 'ok'   ? '<span class="m-card-ok">✓ 已验证</span>' :
+                  state === 'error' ? '<span class="m-card-err">无权访问</span>' :
+                                      '<span class="m-card-hint">验证中…</span>';
+      minutesCard.innerHTML =
+        '<span class="m-card-icon">🎙</span>' +
+        '<div class="m-card-body">' +
+        '  <div class="m-card-title">' + escMin(title) + '</div>' +
+        '  <div class="m-card-meta">' + escMin(metaStr || '') + '</div>' +
+        '</div>' +
+        right +
+        '<button type="button" class="m-card-reselect" aria-label="重选">重选</button>';
+      minutesCard.hidden = false;
+      minutesBtn.hidden = true;
+      var reBtn = minutesCard.querySelector('.m-card-reselect');
+      if (reBtn) reBtn.onclick = function() {
+        clearMinutesSelection();
+        minutesShowPanel();
+      };
+    }
+
+    function hydrateMinutesCard(url, fallbackTitle) {
       if (!url || !/\/minutes\/[A-Za-z0-9]/.test(url)) {
-        minutesCard.hidden = true;
-        minutesCard.innerHTML = '';
+        clearMinutesSelection();
         return;
       }
-      minutesCard.hidden = false;
-      minutesCard.innerHTML = '<span class="m-card-hint">验证中…</span>';
+      renderMinutesSelected(fallbackTitle || '加载中…', '', 'loading');
       fetch('/api/minutes/meta?url=' + encodeURIComponent(url))
         .then(function(resp) {
           if (!resp.ok) return resp.json().then(function(d) { throw d; });
           return resp.json();
         })
         .then(function(d) {
-          minutesCard.classList.remove('error');
           var metas = [];
           if (d.duration_secs) metas.push(minutesFmtDuration(d.duration_secs));
           if (d.create_time) metas.push(minutesFmtDate(d.create_time));
-          minutesCard.innerHTML =
-            '<span class="m-card-icon">🎙</span>' +
-            '<div class="m-card-body">' +
-            '  <div class="m-card-title">' + escMin(d.title || '未命名') + '</div>' +
-            '  <div class="m-card-meta">' + escMin(metas.join(' · ')) + '</div>' +
-            '</div>' +
-            '<span class="m-card-ok">✓ 已验证</span>';
+          renderMinutesSelected(d.title || fallbackTitle || '未命名', metas.join(' · '), 'ok');
         })
         .catch(function(err) {
-          minutesCard.classList.add('error');
-          var msg = '无法验证妙记';
+          var msg = '无法验证';
           var detail = err && err.detail;
-          if (detail === 'forbidden') msg = '无权访问该妙记';
+          if (detail === 'forbidden') msg = '无权访问';
           else if (detail === 'invalid_url') msg = '链接格式不正确';
           else if (detail === 'feishu_login_required') msg = '请用飞书账号登录';
           else if (String(detail).indexOf('minutes_scope_required') >= 0) msg = '妙记权限审批中';
-          minutesCard.innerHTML = '<span class="m-card-err">✗ ' + escMin(msg) + '</span>';
+          renderMinutesSelected(fallbackTitle || '妙记', msg, 'error');
         });
     }
-    // 粘贴 / 手动输入 URL 时触发
-    minutesInputEl.addEventListener('input', function() {
-      if (cardTimer) clearTimeout(cardTimer);
-      cardTimer = setTimeout(function() {
-        refreshMinutesCard(minutesInputEl.value.trim());
-      }, 500);
-    });
-    // 页面初始有值（草稿恢复 / 表单回填）也跑一次
+
+    // picker 选中后：存 URL + 显示卡片（标题先用 picker 列表里的，等 meta 到了替换）
+    function onMinutesPick(item) {
+      if (!item || !item.url) return;
+      minutesInputEl.value = item.url;
+      hydrateMinutesCard(item.url, item.title || '');
+    }
+
+    // 初始化：已有值（草稿/回填）直接 hydrate 卡片
     if (minutesInputEl.value.trim()) {
-      refreshMinutesCard(minutesInputEl.value.trim());
+      hydrateMinutesCard(minutesInputEl.value.trim(), '');
+    }
+
+    // ---- 会议纪要：选中后卡片替换按钮；卡片上有"重选" ------------
+    var docsInputEl = document.getElementById('f-minutes');
+    var docsBtn     = document.getElementById('docs-picker-btn');
+    var docsCard    = document.getElementById('docs-card');
+
+    function clearDocsSelection() {
+      docsInputEl.value = '';
+      docsCard.hidden = true;
+      docsCard.innerHTML = '';
+      docsBtn.hidden = false;
+    }
+
+    function renderDocsSelected(title) {
+      docsCard.innerHTML =
+        '<span class="m-card-icon">📄</span>' +
+        '<div class="m-card-body">' +
+        '  <div class="m-card-title">' + escMin(title) + '</div>' +
+        '</div>' +
+        '<span class="m-card-ok">✓</span>' +
+        '<button type="button" class="m-card-reselect" aria-label="重选">重选</button>';
+      docsCard.hidden = false;
+      docsBtn.hidden = true;
+      var reBtn = docsCard.querySelector('.m-card-reselect');
+      if (reBtn) reBtn.onclick = function() {
+        clearDocsSelection();
+        if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
+          docsBtn.click();
+        }
+      };
+    }
+
+    function onDocsPick(item) {
+      if (!item || !item.url) return;
+      docsInputEl.value = item.url;
+      renderDocsSelected(item.title || '会议纪要');
+    }
+
+    // 初始已有（草稿/回填）
+    if (docsInputEl.value.trim()) {
+      // 草稿里没存标题；先用 URL 尾段当标题
+      var u = docsInputEl.value.trim();
+      var last = u.split('/').pop() || '会议纪要';
+      renderDocsSelected(last.length > 30 ? last.slice(0, 30) + '…' : last);
     }
 
     // -------- 客户参会人员 -----------------------------------
