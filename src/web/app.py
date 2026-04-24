@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 from datetime import datetime
@@ -181,12 +182,14 @@ def _fetch_followup_page(
     sql = [
         "SELECT",
         "  r.id, r.customer_id, r.meeting_date, r.location,",
-        "  r.our_attendees, r.client_attendees,",
+        "  r.our_attendees, r.client_attendees, r.other_attendees,",
         "  r.background, r.photo_image_key,",
         "  r.meeting_title, r.progress_line,",
-        "  c.name AS customer_name",
+        "  c.name AS customer_name,",
+        "  ij.status AS ingest_status",
         "FROM followup_records r",
         "JOIN customers c ON c.id = r.customer_id",
+        "LEFT JOIN ingest_jobs ij ON ij.record_id = r.id",
         "WHERE 1=1",
     ]
     params: list = []
@@ -243,14 +246,48 @@ def _decorate_customers(rows: list[dict]) -> list[dict]:
     return out
 
 
+_INGEST_IN_PROGRESS = {"queued", "fetching", "ingesting", "extracting", "committing"}
+
+
+def _parse_attendee_names(raw: str | None) -> list[str]:
+    """our_attendees: [{id,name,avatar}...]   client/other: ['name1', 'name2']"""
+    if not raw:
+        return []
+    try:
+        v = json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(v, list):
+        return []
+    names: list[str] = []
+    for it in v:
+        if isinstance(it, str):
+            s = it.strip()
+            if s:
+                names.append(s)
+        elif isinstance(it, dict):
+            n = (it.get("name") or "").strip()
+            if n:
+                names.append(n)
+    return names
+
+
 def _decorate_followups(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         d = dict(r)
-        d["our_count"] = _count_json_list(d.get("our_attendees"))
-        d["client_count"] = _count_json_list(d.get("client_attendees"))
+        d["our_names"] = _parse_attendee_names(d.get("our_attendees"))
+        d["client_names"] = _parse_attendee_names(d.get("client_attendees"))
+        d["other_names"] = _parse_attendee_names(d.get("other_attendees"))
         d["date_display"] = _format_meeting_date(d.get("meeting_date"))
-        d["title"] = d.get("summary") or _first_line(d.get("background") or "") or "—"
+        # AI 状态：pipeline 还在跑 → "AI 处理中…"；失败 → 提示失败；成功（字段有值）→ 不用标签
+        status = (d.get("ingest_status") or "").lower()
+        if status in _INGEST_IN_PROGRESS:
+            d["ai_state"] = "processing"
+        elif status == "failed":
+            d["ai_state"] = "failed"
+        else:
+            d["ai_state"] = "done"
         out.append(d)
     return out
 

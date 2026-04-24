@@ -640,6 +640,45 @@
   .followup-card .fu-kv.fu-kv-title .fu-v {
     -webkit-line-clamp: 2;
   }
+  /* AI 状态占位（处理中/失败） */
+  .followup-card .fu-v-ai {
+    color: var(--neutral-400);
+    font-style: italic;
+  }
+  .followup-card .fu-v-ai.fu-v-ai-failed {
+    color: #c94a4a;
+    font-style: normal;
+  }
+  /* 独立的 meta 行：地点、参会人员 */
+  .followup-card .fc-meta-line {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--neutral-500);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    line-height: 1.55;
+  }
+  .followup-card .fc-meta-line + .fc-meta-line {
+    margin-top: 4px;
+  }
+  .followup-card .fc-meta-line .fc-meta-item {
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .followup-card .fc-role {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .followup-card .fc-role-k {
+    color: var(--neutral-400);
+    flex-shrink: 0;
+  }
+  .followup-card .fc-role-v {
+    color: var(--neutral-700);
+    word-break: break-word;
+  }
 
   /* ============ followup detail ============ */
   .fd-subtitle {

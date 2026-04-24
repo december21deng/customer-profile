@@ -28,14 +28,31 @@
       <div class="fc-date">{{ f.date_display }}</div>
       <div class="fu-kv fu-kv-title">
         <span class="fu-k">会议主题</span>
-        <span class="fu-v">{{ f.meeting_title or '—' }}</span>
+        <span class="fu-v">
+          {% if f.ai_state == 'processing' %}
+            <span class="fu-v-ai">AI 处理中…</span>
+          {% elif f.ai_state == 'failed' %}
+            <span class="fu-v-ai fu-v-ai-failed">AI 处理失败</span>
+          {% else %}
+            {{ f.meeting_title or '—' }}
+          {% endif %}
+        </span>
       </div>
       <div class="fu-kv">
         <span class="fu-k">一句话进展</span>
-        <span class="fu-v">{{ f.progress_line or '—' }}</span>
+        <span class="fu-v">
+          {% if f.ai_state == 'processing' %}
+            <span class="fu-v-ai">AI 处理中…</span>
+          {% elif f.ai_state == 'failed' %}
+            <span class="fu-v-ai fu-v-ai-failed">AI 处理失败</span>
+          {% else %}
+            {{ f.progress_line or '—' }}
+          {% endif %}
+        </span>
       </div>
-      <div class="fc-meta">
-        {% if f.location %}
+
+      {% if f.location %}
+        <div class="fc-meta-line">
           <span class="fc-meta-item">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none"
                  stroke="currentColor" stroke-width="2"
@@ -45,17 +62,32 @@
             </svg>
             {{ f.location }}
           </span>
+        </div>
+      {% endif %}
+
+      <div class="fc-meta-line fc-meta-people">
+        {% if f.our_names %}
+          <span class="fc-role">
+            <span class="fc-role-k">我方</span>
+            <span class="fc-role-v">{{ f.our_names | join('、') }}</span>
+          </span>
         {% endif %}
-        <span class="fc-meta-item">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none"
-               stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-          </svg>
-          我方 {{ f.our_count }} · 客户 {{ f.client_count }}
-        </span>
+        {% if f.client_names %}
+          <span class="fc-role">
+            <span class="fc-role-k">客户</span>
+            <span class="fc-role-v">{{ f.client_names | join('、') }}</span>
+          </span>
+        {% endif %}
       </div>
+
+      {% if f.other_names %}
+        <div class="fc-meta-line fc-meta-people">
+          <span class="fc-role">
+            <span class="fc-role-k">其他</span>
+            <span class="fc-role-v">{{ f.other_names | join('、') }}</span>
+          </span>
+        </div>
+      {% endif %}
     </a>
   {% endfor %}
 
