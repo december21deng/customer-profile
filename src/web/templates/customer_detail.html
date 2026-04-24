@@ -72,7 +72,13 @@
       <div class="fd-kv-v">{{ c.owner_name or '企业公共客户池' }}</div>
 
       <div class="fd-kv-k">客户阶段</div>
-      <div class="fd-kv-v">{{ '—' if not c.crm_sale_stage_id else '—' }}</div>
+      <div class="fd-kv-v">
+        {% if c.ai_stage %}
+          <span class="fd-stage-chip">{{ c.ai_stage }}</span>
+        {% else %}
+          <span class="fd-kv-empty">—</span>
+        {% endif %}
+      </div>
 
       <div class="fd-kv-k">最近活动</div>
       <div class="fd-kv-v">{{ recent_at_display }}</div>

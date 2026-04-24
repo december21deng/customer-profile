@@ -482,11 +482,12 @@ def _commit_sql(
             conn.execute(
                 """
                 UPDATE customers
-                SET summary = ?, wiki_path = ?, local_updated_at = ?
+                SET summary = ?, ai_stage = ?, wiki_path = ?, local_updated_at = ?
                 WHERE id = ?
                 """,
                 (
                     extract_result.get("summary") or "",
+                    extract_result.get("journey_stage") or "",
                     wiki_rel,
                     now,
                     customer_id,

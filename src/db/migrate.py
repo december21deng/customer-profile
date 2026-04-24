@@ -60,6 +60,16 @@ def _run_column_migrations(conn: sqlite3.Connection) -> int:
         ]:
             if _add_col_if_missing(conn, "user_tokens", col, decl):
                 added += 1
+
+    # v0.9: customers 加 ai_stage（AI 判断的客户阶段，不依赖 CRM）
+    has_customers = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='customers'"
+    ).fetchone()
+    if has_customers:
+        if _add_col_if_missing(
+            conn, "customers", "ai_stage", "TEXT NOT NULL DEFAULT ''"
+        ):
+            added += 1
     return added
 
 

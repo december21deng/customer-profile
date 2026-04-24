@@ -31,6 +31,7 @@ SCHEMA = [
         crm_updated_at            TEXT NOT NULL,              -- watermark 字段
         -- 本地增量（sync 不覆盖）
         summary                   TEXT NOT NULL DEFAULT '',
+        ai_stage                  TEXT NOT NULL DEFAULT '',   -- AI 判断的客户阶段（JOURNEY_STAGES 枚举）
         wiki_path                 TEXT NOT NULL DEFAULT '',
         local_updated_at          TEXT,
         -- 元信息
