@@ -117,6 +117,37 @@ def fetch_and_save(
     return raw_path, text
 
 
+def _trim_whitespace(png_bytes: bytes) -> bytes:
+    """飞书画板导出的 PNG 带大量空白画布 —— 按内容 bbox 裁掉周围空白。
+    仅对 board 类型做，image 类型用户贴的截图通常本来就紧贴，不动。
+    失败（解析不了 / 全空白 / PIL 没装）直接返回原字节。"""
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return png_bytes
+    try:
+        import io
+        img = Image.open(io.BytesIO(png_bytes))
+        # 用白色背景算差，getbbox 返回非白的最小矩形
+        rgb = img.convert("RGB")
+        bg = Image.new("RGB", rgb.size, (255, 255, 255))
+        diff = ImageChops.difference(rgb, bg)
+        bbox = diff.getbbox()
+        if not bbox:
+            return png_bytes   # 全白
+        # 各边留 8px 呼吸空间
+        l, t, r, b = bbox
+        pad = 8
+        W, H = img.size
+        bbox = (max(0, l - pad), max(0, t - pad), min(W, r + pad), min(H, b + pad))
+        cropped = img.crop(bbox)
+        out = io.BytesIO()
+        cropped.save(out, format="PNG", optimize=True)
+        return out.getvalue()
+    except Exception:
+        return png_bytes
+
+
 def fetch_media_and_save(doc_id: str, access_token: str | None) -> list[dict]:
     """把 docx 里的图片 + 画板下载到本地存储，返回 [{kind, key}] 列表。
 
@@ -150,6 +181,9 @@ def fetch_media_and_save(doc_id: str, access_token: str | None) -> list[dict]:
             buf = b"".join(stream)
             if not buf:
                 continue
+            # 画板带空白画布，裁一下；普通图片不动
+            if kind == "board":
+                buf = _trim_whitespace(buf)
             # 存本地（dev） / im/v1/images（prod），复用同一套 photo_storage
             key = photo_storage.save(
                 buf,
