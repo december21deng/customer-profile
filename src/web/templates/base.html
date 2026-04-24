@@ -1356,19 +1356,28 @@
     transform: translate(-50%, 0);
   }
 </style>
-</head>
-<body>
-  <div class="wrap">{% block body %}{% endblock %}</div>
-
-  <!-- 飞书 H5 JSSDK：仅在飞书客户端里 script 标签对应的全局对象才会被注入 -->
-  <!-- 浏览器里脚本 404 也没事，后面的 h5sdk.ready 调用自然 no-op -->
+  <!-- 飞书 H5 JSSDK：必须在 <body> 之前就把 Promise 同步创建好，
+       这样 {% block body %} 里的 <script> 才能 .then() 到它 -->
   <script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.30.js"
           crossorigin="anonymous"></script>
   <script>
   (function() {
     window.__feishuState = 'init';
     window.__feishuError = null;
-    // 可见诊断 banner（上线稳定后可去掉）
+    // 同步创建 Promise，把 resolve/reject 暴露出来，稍后 init 再调
+    window.__feishuReady = new Promise(function(resolve, reject) {
+      window.__feishuResolve = resolve;
+      window.__feishuReject = reject;
+    });
+  })();
+  </script>
+</head>
+<body>
+  <div class="wrap">{% block body %}{% endblock %}</div>
+
+  <script>
+  // 实际 JSSDK 初始化：跑在 body 末尾（此时 document.body 已在）
+  (function() {
     function showDiag(msg) {
       var el = document.createElement('div');
       el.style.cssText = 'position:fixed;bottom:12px;left:12px;right:12px;' +
@@ -1380,67 +1389,64 @@
     }
     if (typeof window.h5sdk === 'undefined') {
       window.__feishuState = 'no_h5sdk';
-      window.__feishuReady = Promise.reject(new Error('h5sdk_not_loaded'));
+      window.__feishuReject(new Error('h5sdk_not_loaded'));
       return;
     }
-    window.__feishuReady = new Promise(function(resolve, reject) {
-      var href = location.href.split('#')[0];
-      fetch('/api/jssdk/config?url=' + encodeURIComponent(href), { credentials: 'same-origin' })
-        .then(function(r) {
-          if (!r.ok) throw new Error('config_http_' + r.status);
-          return r.json();
-        })
-        .then(function(cfg) {
-          if (!cfg || !cfg.appId) { throw new Error('config_no_appid'); }
-          window.__feishuState = 'config_calling';
-          console.log('[jssdk] config params:', {
-            appId: cfg.appId,
-            timestamp: cfg.timestamp,
-            timestampType: typeof cfg.timestamp,
-            nonceStr: cfg.nonceStr,
-            signedUrl: href,
-            currentUrl: location.href.split('#')[0],
-          });
-          h5sdk.config({
-            appId: cfg.appId,
-            timestamp: cfg.timestamp,
-            nonceStr: cfg.nonceStr,
-            signature: cfg.signature,
-            jsApiList: ['chooseContact', 'docsPicker', 'getSystemInfo'],
-            onSuccess: function() {
-              window.__feishuState = 'config_ok';
-              h5sdk.ready(function() {
-                window.__feishuState = 'ready';
-                resolve();
-              });
-            },
-            onFail: function(err) {
-              window.__feishuState = 'config_fail';
-              window.__feishuError = err;
-              console.error('h5sdk.config onFail:', err);
-              showDiag(
-                'config_fail: ' + JSON.stringify(err) +
-                '\nsigned_url: ' + href +
-                '\ncurrent_url: ' + location.href.split('#')[0] +
-                '\nts: ' + cfg.timestamp + ' (' + typeof cfg.timestamp + ')'
-              );
-              reject(err);
-            },
-          });
-          h5sdk.error(function(err) {
-            window.__feishuError = err;
-            console.error('h5sdk.error:', err);
-            showDiag('h5sdk.error: ' + JSON.stringify(err));
-          });
-        })
-        .catch(function(err) {
-          window.__feishuState = 'fetch_fail';
-          window.__feishuError = err;
-          console.error('jssdk init failed:', err);
-          showDiag((err && err.message) || 'unknown_fetch_error');
-          reject(err);
+    var href = location.href.split('#')[0];
+    fetch('/api/jssdk/config?url=' + encodeURIComponent(href), { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('config_http_' + r.status);
+        return r.json();
+      })
+      .then(function(cfg) {
+        if (!cfg || !cfg.appId) { throw new Error('config_no_appid'); }
+        window.__feishuState = 'config_calling';
+        console.log('[jssdk] config params:', {
+          appId: cfg.appId,
+          timestamp: cfg.timestamp,
+          timestampType: typeof cfg.timestamp,
+          nonceStr: cfg.nonceStr,
+          signedUrl: href,
+          currentUrl: location.href.split('#')[0],
         });
-    });
+        h5sdk.config({
+          appId: cfg.appId,
+          timestamp: cfg.timestamp,
+          nonceStr: cfg.nonceStr,
+          signature: cfg.signature,
+          jsApiList: ['chooseContact', 'docsPicker', 'getSystemInfo'],
+          onSuccess: function() {
+            window.__feishuState = 'config_ok';
+            h5sdk.ready(function() {
+              window.__feishuState = 'ready';
+              window.__feishuResolve();
+            });
+          },
+          onFail: function(err) {
+            window.__feishuState = 'config_fail';
+            window.__feishuError = err;
+            console.error('h5sdk.config onFail:', err);
+            showDiag(
+              'config_fail: ' + JSON.stringify(err) +
+              '\nsigned_url: ' + href +
+              '\nts: ' + cfg.timestamp + ' (' + typeof cfg.timestamp + ')'
+            );
+            window.__feishuReject(err);
+          },
+        });
+        h5sdk.error(function(err) {
+          window.__feishuError = err;
+          console.error('h5sdk.error:', err);
+          showDiag('h5sdk.error: ' + JSON.stringify(err));
+        });
+      })
+      .catch(function(err) {
+        window.__feishuState = 'fetch_fail';
+        window.__feishuError = err;
+        console.error('jssdk init failed:', err);
+        showDiag((err && err.message) || 'unknown_fetch_error');
+        window.__feishuReject(err);
+      });
   })();
   </script>
 </body>
