@@ -26,10 +26,6 @@
       {%- if f.ai_state == 'failed' %} is-failed{% endif -%}"
        href="/followup/{{ f.id }}">
 
-      {% if show_customer %}
-        <div class="fc-customer-row">{{ f.customer_name }}</div>
-      {% endif %}
-
       <div class="fc-title-row">
         <span class="fc-title-bar" aria-hidden="true"></span>
         <div class="fc-title
@@ -57,6 +53,10 @@
       </div>
 
       <div class="fc-meta">
+        {% if show_customer %}
+          <span class="fc-meta-cust">{{ f.customer_name }}</span>
+          <span class="fc-meta-sep">·</span>
+        {% endif %}
         <span class="fc-meta-date">
           {% if f.date_parts.month %}
             {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}

@@ -568,17 +568,6 @@
   }
   .followup-card:active { background: var(--neutral-50); }
 
-  /* 客户名（全局列表才显示，小灰字做 breadcrumb） */
-  .followup-card .fc-customer-row {
-    font-size: 12px;
-    color: var(--neutral-500);
-    margin-bottom: 4px;
-    line-height: 1.4;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   /* 标题行：flex 容器，左侧 2px 色条 + 标题文字
      色条用 flex item + align-self:stretch + 上下 margin，让竖线比 line-box 短，
      视觉上跟标题文字高度对齐（不是整个 line-height 盒） */
@@ -624,6 +613,7 @@
     line-height: 1.5;
     margin-bottom: 6px;
   }
+  .followup-card .fc-meta-cust { color: var(--neutral-700); font-weight: 500; }
   .followup-card .fc-meta-date { color: var(--neutral-600); }
   .followup-card .fc-meta-loc  { color: var(--neutral-500); }
   .followup-card .fc-meta-sep  { color: var(--neutral-300); }
