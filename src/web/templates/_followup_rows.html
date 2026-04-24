@@ -22,72 +22,89 @@
 {% else %}
   {% for f in followups %}
     <a class="followup-card" href="/followup/{{ f.id }}">
-      {% if show_customer %}
-        <div class="fc-customer">{{ f.customer_name }}</div>
-      {% endif %}
-      <div class="fc-date">{{ f.date_display }}</div>
-      <div class="fu-kv fu-kv-title">
-        <span class="fu-k">会议主题</span>
-        <span class="fu-v">
-          {% if f.ai_state == 'processing' %}
-            <span class="fu-v-ai">AI 处理中…</span>
-          {% elif f.ai_state == 'failed' %}
-            <span class="fu-v-ai fu-v-ai-failed">AI 处理失败</span>
-          {% else %}
-            {{ f.meeting_title or '—' }}
-          {% endif %}
-        </span>
-      </div>
-      <div class="fu-kv">
-        <span class="fu-k">一句话进展</span>
-        <span class="fu-v">
-          {% if f.ai_state == 'processing' %}
-            <span class="fu-v-ai">AI 处理中…</span>
-          {% elif f.ai_state == 'failed' %}
-            <span class="fu-v-ai fu-v-ai-failed">AI 处理失败</span>
-          {% else %}
-            {{ f.progress_line or '—' }}
-          {% endif %}
-        </span>
+      <div class="fc-date-col">
+        <div class="fc-dc-month">{{ f.date_parts.month }}</div>
+        <div class="fc-dc-day">{{ f.date_parts.day }}</div>
+        <div class="fc-dc-weekday">{{ f.date_parts.weekday }}</div>
+        {% if f.date_parts.time %}
+          <div class="fc-dc-time">{{ f.date_parts.time }}</div>
+        {% endif %}
       </div>
 
-      {% if f.location %}
-        <div class="fc-meta-line">
-          <span class="fc-meta-item">
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none"
+      <div class="fc-body-col">
+        {% if show_customer %}
+          <div class="fc-customer">{{ f.customer_name }}</div>
+        {% endif %}
+
+        {% if f.location %}
+          <div class="fc-loc">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none"
                  stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
             {{ f.location }}
-          </span>
-        </div>
-      {% endif %}
-
-      <div class="fc-meta-line fc-meta-people">
-        {% if f.our_names %}
-          <span class="fc-role">
-            <span class="fc-role-k">我方</span>
-            <span class="fc-role-v">{{ f.our_names | join('、') }}</span>
-          </span>
+          </div>
         {% endif %}
+
+        <div class="fc-title
+            {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+            {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+          {% if f.ai_state == 'processing' %}
+            <span class="fc-skel-bar"></span>
+          {% elif f.ai_state == 'failed' %}
+            AI 处理失败
+          {% else %}
+            {{ f.meeting_title or '—' }}
+          {% endif %}
+        </div>
+
+        <div class="fc-progress
+            {%- if f.ai_state == 'processing' %} fc-ai-pulse{% endif -%}">
+          {% if f.ai_state == 'processing' %}
+            AI 正在整理这场会议…
+          {% elif f.ai_state == 'failed' %}
+            <span class="fc-ai-failed-hint">纪要访问失败，点击查看详情</span>
+          {% else %}
+            {{ f.progress_line or '—' }}
+          {% endif %}
+        </div>
+
+        {% if f.our_people %}
+          <div class="fc-role-row">
+            <span class="fc-chip fc-chip-us">我方</span>
+            <span class="fc-avatar-stack">
+              {% for p in f.our_people[:3] %}
+                {% if p.avatar %}
+                  <span class="fc-av"><img src="{{ p.avatar }}" alt="{{ p.initial }}"
+                       onerror="this.parentNode.textContent='{{ p.initial }}'"></span>
+                {% else %}
+                  <span class="fc-av">{{ p.initial }}</span>
+                {% endif %}
+              {% endfor %}
+            </span>
+            <span class="fc-role-names">
+              {%- set extra = f.our_people|length - 3 -%}
+              {{ f.our_names | join('，') }}
+            </span>
+          </div>
+        {% endif %}
+
         {% if f.client_names %}
-          <span class="fc-role">
-            <span class="fc-role-k">客户</span>
-            <span class="fc-role-v">{{ f.client_names | join('、') }}</span>
-          </span>
+          <div class="fc-role-row">
+            <span class="fc-chip fc-chip-cust">客户</span>
+            <span class="fc-role-names">{{ f.client_names | join('，') }}</span>
+          </div>
+        {% endif %}
+
+        {% if f.other_names %}
+          <div class="fc-role-row">
+            <span class="fc-chip fc-chip-other">其他</span>
+            <span class="fc-role-names">{{ f.other_names | join('，') }}</span>
+          </div>
         {% endif %}
       </div>
-
-      {% if f.other_names %}
-        <div class="fc-meta-line fc-meta-people">
-          <span class="fc-role">
-            <span class="fc-role-k">其他</span>
-            <span class="fc-role-v">{{ f.other_names | join('、') }}</span>
-          </span>
-        </div>
-      {% endif %}
     </a>
   {% endfor %}
 

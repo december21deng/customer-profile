@@ -249,6 +249,53 @@ def _decorate_customers(rows: list[dict]) -> list[dict]:
 _INGEST_IN_PROGRESS = {"queued", "fetching", "ingesting", "extracting", "committing"}
 
 
+_WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+
+def _format_meeting_date_parts(s: str | None) -> dict:
+    """'2026-04-20T14:30' → {month:'4月', day:20, weekday:'周一', time:'14:30'}."""
+    if not s:
+        return {"month": "", "day": "", "weekday": "", "time": ""}
+    try:
+        dt = datetime.fromisoformat(s)
+    except Exception:
+        return {"month": "", "day": s[:10], "weekday": "", "time": ""}
+    return {
+        "month": f"{dt.month}月",
+        "day": dt.day,
+        "weekday": _WEEKDAY_CN[dt.weekday()],
+        "time": dt.strftime("%H:%M"),
+    }
+
+
+def _parse_our_people(raw: str | None) -> list[dict]:
+    """our_attendees JSON → [{name, avatar, initial}, ...]."""
+    if not raw:
+        return []
+    try:
+        v = json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(v, list):
+        return []
+    out: list[dict] = []
+    for it in v:
+        if isinstance(it, dict):
+            name = (it.get("name") or "").strip()
+            if not name:
+                continue
+            out.append({
+                "name": name,
+                "avatar": it.get("avatar") or "",
+                "initial": name[:1],
+            })
+        elif isinstance(it, str):
+            s = it.strip()
+            if s:
+                out.append({"name": s, "avatar": "", "initial": s[:1]})
+    return out
+
+
 def _parse_attendee_names(raw: str | None) -> list[str]:
     """our_attendees: [{id,name,avatar}...]   client/other: ['name1', 'name2']"""
     if not raw:
@@ -276,9 +323,11 @@ def _decorate_followups(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         d = dict(r)
-        d["our_names"] = _parse_attendee_names(d.get("our_attendees"))
+        d["our_people"] = _parse_our_people(d.get("our_attendees"))
+        d["our_names"] = [p["name"] for p in d["our_people"]]
         d["client_names"] = _parse_attendee_names(d.get("client_attendees"))
         d["other_names"] = _parse_attendee_names(d.get("other_attendees"))
+        d["date_parts"] = _format_meeting_date_parts(d.get("meeting_date"))
         d["date_display"] = _format_meeting_date(d.get("meeting_date"))
         # AI 状态：pipeline 还在跑 → "AI 处理中…"；失败 → 提示失败；成功（字段有值）→ 不用标签
         status = (d.get("ingest_status") or "").lower()
