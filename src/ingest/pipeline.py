@@ -579,19 +579,9 @@ async def run(record_id: str) -> None:
             return
         raw_path, raw_text = fetched
 
-        # ---- Fetch media (画板 + 内嵌图片) —— 失败不阻塞 pipeline ---
-        try:
-            minutes_media = await asyncio.to_thread(
-                fetch_media_and_save,
-                effective_doc_id,
-                owner_user_token,
-            )
-            logger.info(
-                "[%s] fetched %d media items from docx", log_prefix, len(minutes_media),
-            )
-        except Exception:
-            logger.exception("[%s] media fetch crashed (continue without media)", log_prefix)
-            minutes_media = []
+        # 媒体（画板/图片）不再由 pipeline 下载 —— 用户点"打开原文"在飞书里看，
+        # 避免额外申请 drive / board scope。minutes_media 永远为空数组。
+        minutes_media: list[dict] = []
 
         # ---- Ingest (agent) -------------------------------------------
         jobs.set_status(record_id, "ingesting")

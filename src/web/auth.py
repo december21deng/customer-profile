@@ -320,14 +320,13 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
 
     # Step 1: 没 code → 跳飞书
     # scope 必须显式请求才能把权限注入 user_access_token：
-    #   - contact:user:search：搜同事（1.0.7 已发布 ✅）
-    #   - docx:document:readonly：读会议纪要 docx blocks
+    #   - contact:user:search：搜同事（1.0.7 已发布）
+    #   - docx:document:readonly：读会议纪要 docx（文本内容，不含媒体下载）
     #   - wiki:node:read：解析 /wiki/ URL → 真实 docx id
-    #   - drive:drive:readonly：下载 docx 内嵌图片（drive/v1/medias/{token}/download）
-    #   - board:whiteboard:node:read：导出画板为 PNG
-    #   - minutes:minutes.search:read：自研妙记 picker 搜索（lark-cli 用的那个 API）
+    #   - minutes:minutes.search:read：自研妙记 picker 搜索
     #   - minutes:minutes.basic:read：妙记验证卡片的元信息拉取
-    #   - offline_access：拿 refresh_token（1.0.8 审核中，暂不加，等批了再加）
+    #
+    # 注意：不再请求 drive/board 下载 scope —— 改由"打开原文"按钮跳飞书查看
     if not code:
         params = {
             "app_id": LARK_APP_ID,
@@ -337,8 +336,6 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
                 "contact:user:search "
                 "docx:document:readonly "
                 "wiki:node:read "
-                "drive:drive:readonly "
-                "board:whiteboard:node:read "
                 "minutes:minutes.search:read "
                 "minutes:minutes.basic:read"
             ),
