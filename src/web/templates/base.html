@@ -604,19 +604,38 @@
     word-break: break-word;
   }
 
-  /* 日期 + 地点（移到进展下方） */
-  .followup-card .fc-meta {
-    display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
-    font-size: 12px;
-    color: var(--neutral-500);
+
+  /* KV meta：客户 / 时间 / 地点（紧跟标题） */
+  .followup-card .fc-kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 10px;
+    row-gap: 2px;
+    margin: 0 0 10px;
     font-variant-numeric: tabular-nums;
-    line-height: 1.5;
-    margin-bottom: 6px;
+    line-height: 1.55;
   }
-  .followup-card .fc-meta-cust { color: var(--neutral-700); font-weight: 500; }
-  .followup-card .fc-meta-date { color: var(--neutral-600); }
-  .followup-card .fc-meta-loc  { color: var(--neutral-500); }
-  .followup-card .fc-meta-sep  { color: var(--neutral-300); }
+  .followup-card .fc-kv-k {
+    font-size: 12.5px;
+    color: var(--neutral-400);
+    font-weight: 400;
+    align-self: baseline;
+  }
+  .followup-card .fc-kv-v {
+    font-size: 13px;
+    color: var(--neutral-700);
+    font-weight: 400;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    align-self: baseline;
+  }
+  /* 客户名视觉权重略提升（是卡片上下文的主角） */
+  .followup-card .fc-kv-v-cust {
+    color: var(--neutral-900);
+    font-weight: 500;
+  }
 
   /* 一句话进展 */
   .followup-card .fc-progress {

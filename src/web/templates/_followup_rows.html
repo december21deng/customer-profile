@@ -41,6 +41,26 @@
         </div>
       </div>
 
+      {# KV meta: 客户 / 时间 / 地点（紧跟标题；客户只在全局列表显示）#}
+      <div class="fc-kv">
+        {% if show_customer %}
+          <div class="fc-kv-k">客户</div>
+          <div class="fc-kv-v fc-kv-v-cust">{{ f.customer_name }}</div>
+        {% endif %}
+        <div class="fc-kv-k">时间</div>
+        <div class="fc-kv-v">
+          {% if f.date_parts.month %}
+            {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}
+          {% else %}
+            {{ f.date_display }}
+          {% endif %}
+        </div>
+        {% if f.location %}
+          <div class="fc-kv-k">地点</div>
+          <div class="fc-kv-v">{{ f.location }}</div>
+        {% endif %}
+      </div>
+
       <div class="fc-progress
         {%- if f.ai_state == 'processing' %} fc-ai-pulse{% endif -%}">
         {% if f.ai_state == 'processing' %}
@@ -49,24 +69,6 @@
           <span class="fc-ai-failed-hint">纪要访问失败，点击查看详情</span>
         {% else %}
           {{ f.progress_line or '—' }}
-        {% endif %}
-      </div>
-
-      <div class="fc-meta">
-        {% if show_customer %}
-          <span class="fc-meta-cust">{{ f.customer_name }}</span>
-          <span class="fc-meta-sep">·</span>
-        {% endif %}
-        <span class="fc-meta-date">
-          {% if f.date_parts.month %}
-            {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}
-          {% else %}
-            {{ f.date_display }}
-          {% endif %}
-        </span>
-        {% if f.location %}
-          <span class="fc-meta-sep">·</span>
-          <span class="fc-meta-loc">{{ f.location }}</span>
         {% endif %}
       </div>
 
