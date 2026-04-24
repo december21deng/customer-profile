@@ -892,8 +892,8 @@
       if (!item || !item.url) return;
       minutesInputEl.value = item.url;
       hydrateMinutesCard(item.url, item.title || '');
-      // 隐藏 input 的 .value= 不会触发 input 事件 → autosave 不会跑；手动触发一次
-      if (typeof saveDraftDebounced === 'function') saveDraftDebounced();
+      // picker 是离散事件，立即写 localStorage，不 debounce（避免 500ms 窗口内关页丢）
+      if (typeof saveDraft === 'function') saveDraft();
     }
 
     // 初始化：已有值（草稿/回填）直接 hydrate 卡片
@@ -907,6 +907,8 @@
     var docsCard    = document.getElementById('docs-card');
     var docsRow     = document.getElementById('docs-picker-row');
     var docsPasteBtn = document.getElementById('docs-paste-btn');
+    // 标题单独存一份，用于草稿恢复（URL 里只有 token，不含文档名）
+    var docsTitle = '{{ (values.minutes_title or '') | e }}';
 
     // 手动粘贴兜底 —— 任何环境可用
     if (docsPasteBtn) {
@@ -918,6 +920,7 @@
 
     function clearDocsSelection() {
       docsInputEl.value = '';
+      docsTitle = '';
       docsCard.hidden = true;
       docsCard.innerHTML = '';
       if (docsRow) docsRow.hidden = false;
@@ -947,8 +950,10 @@
     function onDocsPick(item) {
       if (!item || !item.url) return;
       docsInputEl.value = item.url;
-      renderDocsSelected(item.title || '会议纪要');
-      if (typeof saveDraftDebounced === 'function') saveDraftDebounced();
+      docsTitle = item.title || '会议纪要';
+      renderDocsSelected(docsTitle);
+      // picker 是离散事件，立即保存草稿，不 debounce
+      if (typeof saveDraft === 'function') saveDraft();
     }
 
     // 初始已有（草稿/回填）
@@ -1291,6 +1296,7 @@
       return {
         transcript_url: document.getElementById('f-transcript').value,
         minutes_url:    document.getElementById('f-minutes').value,
+        minutes_title:  (typeof docsTitle !== 'undefined' ? docsTitle : ''),
         meeting_date:       document.getElementById('f-date').value,
         meeting_start_time: document.getElementById('f-start').value,
         meeting_end_time:   document.getElementById('f-end').value,
@@ -1392,8 +1398,14 @@
       }
       var mUrl = document.getElementById('f-minutes').value.trim();
       if (mUrl) {
-        var last = mUrl.split('/').pop() || '会议纪要';
-        renderDocsSelected(last.length > 30 ? last.slice(0, 30) + '…' : last);
+        // 优先用草稿保存的标题；没的话（老草稿）fallback 到 URL 末段
+        var title = draft.minutes_title && draft.minutes_title.trim();
+        if (!title) {
+          var last = mUrl.split('/').pop() || '会议纪要';
+          title = last.length > 30 ? last.slice(0, 30) + '…' : last;
+        }
+        docsTitle = title;
+        renderDocsSelected(title);
       } else {
         clearDocsSelection();
       }
