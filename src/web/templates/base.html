@@ -1128,6 +1128,22 @@
     font-size: 12px;
     color: var(--neutral-400);
   }
+  /* 主按钮 + 旁边小链接（docsPicker 不可用时的兜底）*/
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .picker-text-alt {
+    border: 0;
+    background: transparent;
+    color: var(--neutral-400);
+    font-size: 12px;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+  .picker-text-alt:active { color: var(--blue-600); }
 
   /* 妙记 picker 浮层：居中 sheet，风格对齐飞书原生 chooseContact */
   .minutes-panel {
@@ -1143,15 +1159,15 @@
     display: flex; flex-direction: column;
     overflow: hidden;
   }
-  /* 浮层背后的淡遮罩：低透明 + 轻模糊，不要把页面盖成灰板 */
+  /* 浮层背后：淡白色雾化（不要灰）+ 轻模糊 */
   .minutes-panel::before {
     content: '';
     position: fixed;
     left: -100vw; top: -100vh;
     width: 300vw; height: 300vh;
-    background: rgba(31,35,41,0.10);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
     z-index: -1;
   }
   .minutes-panel-head {

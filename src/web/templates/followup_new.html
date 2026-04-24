@@ -64,11 +64,14 @@
         会议纪要<span class="req">*</span>
       </label>
 
-      <!-- 未选状态：按钮 -->
-      <button type="button" class="picker-btn" id="docs-picker-btn">
-        <span class="picker-plus">+</span>
-        <span>选择会议纪要</span>
-      </button>
+      <!-- 未选状态：按钮 + 小字链接作为兜底（docsPicker 失败时能用）-->
+      <div class="picker-row" id="docs-picker-row">
+        <button type="button" class="picker-btn" id="docs-picker-btn">
+          <span class="picker-plus">+</span>
+          <span>选择会议纪要</span>
+        </button>
+        <button type="button" class="picker-text-alt" id="docs-paste-btn">手动粘贴链接</button>
+      </div>
 
       <!-- 已选状态：卡片 + 重选 -->
       <div class="selected-card" id="docs-card" hidden></div>
@@ -617,14 +620,9 @@
                 onDocsPick({ url: url, title: name });
               },
               fail: function(err) {
-                console.error('docsPicker failed:', err);
-                // 用户取消不提示（errCode 为负数或特定值）；其他错误兜底到手动粘贴
-                var code = err && (err.errCode || err.errno);
-                if (code === -1 || code === 102) {
-                  // 102 是飞书内部错误，常见于某些环境 docsPicker 不可用；
-                  // 兜底：弹 prompt 让用户粘贴 URL
-                  promptDocsUrl();
-                }
+                // 用户点 X / 取消 / 内部错误都会进这里。
+                // **不要**自动弹 prompt —— 用户明明 X 掉了，你又弹一个窗是惹祸
+                console.warn('docsPicker failed:', err);
               },
             });
           });
@@ -907,12 +905,22 @@
     var docsInputEl = document.getElementById('f-minutes');
     var docsBtn     = document.getElementById('docs-picker-btn');
     var docsCard    = document.getElementById('docs-card');
+    var docsRow     = document.getElementById('docs-picker-row');
+    var docsPasteBtn = document.getElementById('docs-paste-btn');
+
+    // 手动粘贴兜底 —— 任何环境可用
+    if (docsPasteBtn) {
+      docsPasteBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        promptDocsUrl();
+      });
+    }
 
     function clearDocsSelection() {
       docsInputEl.value = '';
       docsCard.hidden = true;
       docsCard.innerHTML = '';
-      docsBtn.hidden = false;
+      if (docsRow) docsRow.hidden = false;
     }
 
     function renderDocsSelected(title) {
@@ -924,12 +932,14 @@
         '<span class="m-card-ok">✓</span>' +
         '<button type="button" class="m-card-reselect" aria-label="重选">重选</button>';
       docsCard.hidden = false;
-      docsBtn.hidden = true;
+      if (docsRow) docsRow.hidden = true;
       var reBtn = docsCard.querySelector('.m-card-reselect');
       if (reBtn) reBtn.onclick = function() {
         clearDocsSelection();
         if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
           docsBtn.click();
+        } else {
+          promptDocsUrl();
         }
       };
     }
