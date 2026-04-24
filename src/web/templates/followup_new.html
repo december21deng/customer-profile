@@ -894,6 +894,8 @@
       if (!item || !item.url) return;
       minutesInputEl.value = item.url;
       hydrateMinutesCard(item.url, item.title || '');
+      // 隐藏 input 的 .value= 不会触发 input 事件 → autosave 不会跑；手动触发一次
+      if (typeof saveDraftDebounced === 'function') saveDraftDebounced();
     }
 
     // 初始化：已有值（草稿/回填）直接 hydrate 卡片
@@ -936,6 +938,7 @@
       if (!item || !item.url) return;
       docsInputEl.value = item.url;
       renderDocsSelected(item.title || '会议纪要');
+      if (typeof saveDraftDebounced === 'function') saveDraftDebounced();
     }
 
     // 初始已有（草稿/回填）
@@ -1370,6 +1373,20 @@
       }
       checkMinutes();
       checkTranscript();
+      // 重绘 picker 按钮 / 已选卡片（纯靠设置 hidden input 不够）
+      var tUrl = document.getElementById('f-transcript').value.trim();
+      if (tUrl) {
+        hydrateMinutesCard(tUrl, '');
+      } else {
+        clearMinutesSelection();
+      }
+      var mUrl = document.getElementById('f-minutes').value.trim();
+      if (mUrl) {
+        var last = mUrl.split('/').pop() || '会议纪要';
+        renderDocsSelected(last.length > 30 ? last.slice(0, 30) + '…' : last);
+      } else {
+        clearDocsSelection();
+      }
     }
 
     // 事件委托：无论 banner 何时显示，点击始终有效（修复飞书 webview 偶发失效）
