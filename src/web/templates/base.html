@@ -568,51 +568,65 @@
   }
   .followup-card:active { background: var(--neutral-50); }
 
-  /* 顶部 meta：客户（可选）· 日期时间 · 地点 */
-  .followup-card .fc-meta-top {
-    display: flex; flex-wrap: wrap;
-    align-items: baseline; gap: 4px;
+  /* 客户名（全局列表才显示，小灰字做 breadcrumb） */
+  .followup-card .fc-customer-row {
     font-size: 12px;
     color: var(--neutral-500);
-    font-variant-numeric: tabular-nums;
     margin-bottom: 4px;
-    line-height: 1.5;
-  }
-  .followup-card .fc-meta-cust {
-    color: var(--neutral-900);
-    font-weight: 500;
-  }
-  .followup-card .fc-meta-date {
-    color: var(--neutral-700);
-    font-weight: 500;
-  }
-  .followup-card .fc-meta-loc {
-    color: var(--neutral-500);
-  }
-  .followup-card .fc-meta-sep {
-    color: var(--neutral-300);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  /* 标题（带左侧 2px 状态色条，飞书规范：色条跟标题文字等高）
-     用 border-left 做色条，高度自动随 title 行数变化。
-     配合 margin-left: -8px 把 title 往左拉，让色条落到卡片 padding 区里，
-     标题文字最终的 x 位置跟其他元素保持左对齐。 */
+  /* 标题行：flex 容器，左侧 2px 色条 + 标题文字
+     色条用 flex item + align-self:stretch + 上下 margin，让竖线比 line-box 短，
+     视觉上跟标题文字高度对齐（不是整个 line-height 盒） */
+  .followup-card .fc-title-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin: 0 0 4px -8px;    /* 往左拉 8px，让色条落到卡片 padding 内 */
+    min-width: 0;
+  }
+  .followup-card .fc-title-bar {
+    flex: 0 0 2px;
+    align-self: stretch;
+    margin: 5px 0;           /* 上下各缩 5px，比 line-box 短 */
+    background: var(--blue-600);
+    border-radius: 1px;
+  }
+  .followup-card.is-processing .fc-title-bar { background: var(--neutral-300, #C9CDD4); }
+  .followup-card.is-failed     .fc-title-bar { background: #F54A45; }
+
+  /* 标题 */
   .followup-card .fc-title {
+    flex: 1;
+    min-width: 0;
     font-size: 16px;
     font-weight: 600;
     line-height: 1.5;
     color: var(--neutral-900);
-    margin: 0 0 4px -8px;
-    padding: 0 0 0 6px;
-    border-left: 2px solid var(--blue-600);
+    margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     word-break: break-word;
   }
-  .followup-card.is-processing .fc-title { border-left-color: var(--neutral-300, #C9CDD4); }
-  .followup-card.is-failed     .fc-title { border-left-color: #F54A45; }
+
+  /* 日期 + 地点（移到进展下方） */
+  .followup-card .fc-meta {
+    display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--neutral-500);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .followup-card .fc-meta-date { color: var(--neutral-600); }
+  .followup-card .fc-meta-loc  { color: var(--neutral-500); }
+  .followup-card .fc-meta-sep  { color: var(--neutral-300); }
 
   /* 一句话进展 */
   .followup-card .fc-progress {

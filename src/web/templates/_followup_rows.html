@@ -1,5 +1,5 @@
 {#
-  片段：一页 followup 卡片 + sentinel。极简线条式（Variant D）。
+  片段：一页 followup 卡片 + sentinel。极简线条式（Variant D，飞书规范）。
   参数：
     followups           - decorated list（带 date_parts / ai_state / our_people / *_names）
     next_cursor
@@ -26,34 +26,23 @@
       {%- if f.ai_state == 'failed' %} is-failed{% endif -%}"
        href="/followup/{{ f.id }}">
 
-      <div class="fc-meta-top">
-        {% if show_customer %}
-          <span class="fc-meta-cust">{{ f.customer_name }}</span>
-          <span class="fc-meta-sep">·</span>
-        {% endif %}
-        <span class="fc-meta-date">
-          {% if f.date_parts.month %}
-            {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}
-          {% else %}
-            {{ f.date_display }}
-          {% endif %}
-        </span>
-        {% if f.location %}
-          <span class="fc-meta-sep">·</span>
-          <span class="fc-meta-loc">{{ f.location }}</span>
-        {% endif %}
-      </div>
+      {% if show_customer %}
+        <div class="fc-customer-row">{{ f.customer_name }}</div>
+      {% endif %}
 
-      <div class="fc-title
-        {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
-        {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
-        {% if f.ai_state == 'processing' %}
-          <span class="fc-skel-bar"></span>
-        {% elif f.ai_state == 'failed' %}
-          AI 处理失败
-        {% else %}
-          {{ f.meeting_title or '—' }}
-        {% endif %}
+      <div class="fc-title-row">
+        <span class="fc-title-bar" aria-hidden="true"></span>
+        <div class="fc-title
+          {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+          {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+          {% if f.ai_state == 'processing' %}
+            <span class="fc-skel-bar"></span>
+          {% elif f.ai_state == 'failed' %}
+            AI 处理失败
+          {% else %}
+            {{ f.meeting_title or '—' }}
+          {% endif %}
+        </div>
       </div>
 
       <div class="fc-progress
@@ -64,6 +53,20 @@
           <span class="fc-ai-failed-hint">纪要访问失败，点击查看详情</span>
         {% else %}
           {{ f.progress_line or '—' }}
+        {% endif %}
+      </div>
+
+      <div class="fc-meta">
+        <span class="fc-meta-date">
+          {% if f.date_parts.month %}
+            {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}
+          {% else %}
+            {{ f.date_display }}
+          {% endif %}
+        </span>
+        {% if f.location %}
+          <span class="fc-meta-sep">·</span>
+          <span class="fc-meta-loc">{{ f.location }}</span>
         {% endif %}
       </div>
 
