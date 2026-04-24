@@ -636,18 +636,34 @@
     color: var(--neutral-900);
     font-weight: 500;
   }
-
-  /* 一句话进展 */
-  .followup-card .fc-progress {
-    font-size: 14px;
-    color: var(--neutral-500);
-    line-height: 1.55;
-    margin: 0 0 10px;
+  /* 进展：AI 内容，允许换行（其他 kv value 单行省略）*/
+  .followup-card .fc-kv-v-prog {
+    color: var(--neutral-800);
+    white-space: normal;
+    word-break: break-word;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    word-break: break-word;
+    text-overflow: initial;
+  }
+
+  /* 进展 AI 处理中 · 脉动点 */
+  .followup-card .fc-kv-v-prog.fc-ai-pulse {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--neutral-400);
+    -webkit-line-clamp: unset;
+  }
+  .followup-card .fc-kv-v-prog.fc-ai-pulse::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--blue-600);
+    animation: fc-pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .followup-card .fc-kv-v-prog .fc-ai-failed-hint {
+    color: #F54A45;
   }
 
   /* AI 状态 —— 标题 skeleton */
@@ -669,24 +685,6 @@
     color: #F54A45;
     font-weight: 500;
     font-size: 14px;
-  }
-
-  /* AI 状态 —— progress 脉动点 */
-  .followup-card .fc-progress.fc-ai-pulse {
-    display: flex; align-items: center; gap: 8px;
-    color: var(--neutral-400);
-    font-size: 13px;
-  }
-  .followup-card .fc-progress.fc-ai-pulse::before {
-    content: '';
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--blue-600);
-    animation: fc-pulse 1.4s ease-in-out infinite;
-    flex-shrink: 0;
-  }
-  .followup-card .fc-ai-failed-hint {
-    color: #F54A45;
   }
 
   @keyframes fc-shimmer {

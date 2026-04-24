@@ -41,7 +41,7 @@
         </div>
       </div>
 
-      {# KV meta: 客户 / 时间 / 地点（紧跟标题；客户只在全局列表显示）#}
+      {# KV: 客户 / 时间 / 地点 / 进展（紧跟标题；客户只在全局列表显示）#}
       <div class="fc-kv">
         {% if show_customer %}
           <div class="fc-kv-k">客户</div>
@@ -59,17 +59,17 @@
           <div class="fc-kv-k">地点</div>
           <div class="fc-kv-v">{{ f.location }}</div>
         {% endif %}
-      </div>
-
-      <div class="fc-progress
-        {%- if f.ai_state == 'processing' %} fc-ai-pulse{% endif -%}">
-        {% if f.ai_state == 'processing' %}
-          AI 正在整理这场会议…
-        {% elif f.ai_state == 'failed' %}
-          <span class="fc-ai-failed-hint">纪要访问失败，点击查看详情</span>
-        {% else %}
-          {{ f.progress_line or '—' }}
-        {% endif %}
+        <div class="fc-kv-k">进展</div>
+        <div class="fc-kv-v fc-kv-v-prog
+          {%- if f.ai_state == 'processing' %} fc-ai-pulse{% endif -%}">
+          {% if f.ai_state == 'processing' %}
+            AI 正在整理这场会议…
+          {% elif f.ai_state == 'failed' %}
+            <span class="fc-ai-failed-hint">纪要访问失败，点击查看详情</span>
+          {% else %}
+            {{ f.progress_line or '—' }}
+          {% endif %}
+        </div>
       </div>
 
       {% if f.our_people or f.client_names or f.other_names %}
