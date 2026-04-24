@@ -64,7 +64,7 @@
         {% endif %}
       </div>
 
-      {# KV: 时间 / 地点 / 进展（客户已经是 title，不再重复）#}
+      {# 统一 KV：时间 / 地点 / 进展 / 我方 / 客户 / 其他 #}
       <div class="fc-kv">
         <div class="fc-kv-k">时间</div>
         <div class="fc-kv-v">
@@ -89,40 +89,32 @@
             {{ f.progress_line or '—' }}
           {% endif %}
         </div>
-      </div>
 
-      {% if f.our_people or f.client_names or f.other_names %}
-        <div class="fc-people-line">
-          {% if f.our_people %}
-            <span class="fc-role-seg">
-              <span class="fc-role-k">我方</span>
-              <span class="fc-avatar-stack">
-                {% for p in f.our_people[:3] %}
-                  {% if p.avatar %}
-                    <span class="fc-av"><img src="{{ p.avatar }}" alt="{{ p.initial }}"
-                         onerror="this.parentNode.textContent='{{ p.initial }}'"></span>
-                  {% else %}
-                    <span class="fc-av">{{ p.initial }}</span>
-                  {% endif %}
-                {% endfor %}
-              </span>
-              <span class="fc-role-v">{{ f.our_names | join('、') }}</span>
+        {% if f.our_people %}
+          <div class="fc-kv-k">我方</div>
+          <div class="fc-kv-v fc-kv-v-people">
+            <span class="fc-avatar-stack">
+              {% for p in f.our_people[:3] %}
+                {% if p.avatar %}
+                  <span class="fc-av"><img src="{{ p.avatar }}" alt="{{ p.initial }}"
+                       onerror="this.parentNode.textContent='{{ p.initial }}'"></span>
+                {% else %}
+                  <span class="fc-av">{{ p.initial }}</span>
+                {% endif %}
+              {% endfor %}
             </span>
-          {% endif %}
-          {% if f.client_names %}
-            <span class="fc-role-seg">
-              <span class="fc-role-k">客户</span>
-              <span class="fc-role-v">{{ f.client_names | join('、') }}</span>
-            </span>
-          {% endif %}
-          {% if f.other_names %}
-            <span class="fc-role-seg">
-              <span class="fc-role-k">其他</span>
-              <span class="fc-role-v">{{ f.other_names | join('、') }}</span>
-            </span>
-          {% endif %}
-        </div>
-      {% endif %}
+            <span class="fc-kv-v-names">{{ f.our_names | join('、') }}</span>
+          </div>
+        {% endif %}
+        {% if f.client_names %}
+          <div class="fc-kv-k">客户</div>
+          <div class="fc-kv-v">{{ f.client_names | join('、') }}</div>
+        {% endif %}
+        {% if f.other_names %}
+          <div class="fc-kv-k">其他</div>
+          <div class="fc-kv-v">{{ f.other_names | join('、') }}</div>
+        {% endif %}
+      </div>
     </a>
   {% endfor %}
 
