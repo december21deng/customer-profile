@@ -568,12 +568,13 @@ def minutes_search(request: Request, q: str = "", page_token: str = "", page_siz
 
     q = (q or "").strip()[:50]
     # API 必须至少给 query / filter 之一；query 为空时用时间范围
+    # 飞书要求 ISO 8601 with Z 后缀（UTC），例如 2024-01-01T00:00:00Z
     create_start = create_end = None
     if not q:
-        from datetime import timedelta
-        now = datetime.now()
-        create_start = (now - timedelta(days=30)).isoformat(timespec="seconds")
-        create_end = now.isoformat(timespec="seconds")
+        from datetime import timedelta, timezone
+        now = datetime.now(timezone.utc)
+        create_start = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        create_end = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     data, err = search_minutes(
         user_token,
