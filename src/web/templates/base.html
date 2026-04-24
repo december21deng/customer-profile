@@ -413,14 +413,42 @@
   }
   .v-sub-v .muted { color: var(--neutral-300); }
 
-  /* 会议总结图片画廊（Phase 2 填充） */
+  /* 会议总结图片画廊：从 docx 拉的图片 / 画板，竖排 */
   .fd-image-gallery {
     display: flex; flex-direction: column; gap: 10px;
   }
-  .fd-image-gallery img {
-    width: 100%;
+  .fd-image-cell {
+    display: block;
+    position: relative;
     border-radius: 8px;
+    overflow: hidden;
+    background: var(--neutral-50);
+  }
+  .fd-image-cell img {
+    display: block;
+    width: 100%;
     border: 1px solid var(--neutral-200);
+    border-radius: 8px;
+  }
+  .fd-image-hint {
+    position: absolute;
+    left: 10px; bottom: 8px;
+    padding: 3px 8px;
+    background: rgba(31,35,41,0.6);
+    color: #fff;
+    font-size: 11px;
+    border-radius: 999px;
+  }
+  .fd-image-cell.fd-image-failed img { display: none; }
+  .fd-image-cell.fd-image-failed::after {
+    content: "画板无法内嵌显示，点击在飞书打开";
+    display: block;
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--neutral-400);
+    border: 1px dashed var(--neutral-200);
+    border-radius: 8px;
   }
 
   /* 打开原文 / 打开妙记 的链接按钮行 */

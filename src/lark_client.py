@@ -343,6 +343,142 @@ def _clean_minutes_text(raw: str) -> str:
     return "\n".join(result).rstrip()
 
 
+# ------------- docx 块列表（图片 / 画板）-----------------------------
+#
+# 为什么需要：raw_content 只给纯文字，图片/画板会丢。
+# 业务需求：详情页"会议总结"区域要显示妙记的画板/概览图 + 销售内嵌的图片。
+#
+# 方案：GET /open-apis/docx/v1/documents/{doc_id}/blocks 遍历所有 block，
+#       挑出 type=27（image）和 type=43（board/画板）。
+# 需要权限：docx:document:readonly （"文档查看权限"）—— 和 raw_content 同一套。
+# 画板单独导出为图需要：board:whiteboard:node:read（"画板导出"权限，审批中）。
+
+_DOCX_BLOCKS_CACHE: dict = {}  # {doc_id: (media_list, expire_at)}
+_DOCX_BLOCKS_TTL = 300  # 5 分钟
+
+# 飞书 block type 枚举（只列我们关心的）
+BLOCK_TYPE_IMAGE = 27
+BLOCK_TYPE_BOARD = 43
+
+
+def fetch_docx_media(doc_id: str) -> tuple[list[dict], str | None]:
+    """遍历 docx 所有 block，按文档顺序返回图片 + 画板的 token 列表。
+
+    每个 item: {"kind": "image"|"board", "token": "<file_or_whiteboard_token>"}
+    返回 (items, error)。permission 不够时 error 非 None，items=[]。
+
+    进程内缓存 5 分钟。
+    """
+    now = time.time()
+    cached = _DOCX_BLOCKS_CACHE.get(doc_id)
+    if cached and cached[1] > now:
+        return cached[0], None
+
+    token = _get_tenant_token()
+    if not token:
+        return [], "tenant_token_failed"
+
+    items: list[dict] = []
+    page_token = ""
+    # 飞书 block 接口 page_size 上限 500；绝大多数会议纪要一页够用
+    for _ in range(10):  # 防死循环，最多 10 页（5000 blocks）
+        params = {"page_size": 500}
+        if page_token:
+            params["page_token"] = page_token
+        try:
+            resp = http_requests.get(
+                f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/blocks",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+                timeout=15,
+            )
+            data = resp.json()
+        except Exception:
+            logger.exception("docx blocks: request failed doc_id=%s", doc_id)
+            return [], "network_error"
+
+        if data.get("code", -1) != 0:
+            logger.error(
+                "docx blocks failed: code=%s msg=%s doc_id=%s",
+                data.get("code"), data.get("msg"), doc_id,
+            )
+            return [], data.get("msg") or f"code_{data.get('code')}"
+
+        payload = data.get("data") or {}
+        for block in payload.get("items") or []:
+            btype = block.get("block_type")
+            if btype == BLOCK_TYPE_IMAGE:
+                tok = (block.get("image") or {}).get("token")
+                if tok:
+                    items.append({"kind": "image", "token": tok})
+            elif btype == BLOCK_TYPE_BOARD:
+                tok = (block.get("board") or {}).get("token")
+                if tok:
+                    items.append({"kind": "board", "token": tok})
+
+        if not payload.get("has_more"):
+            break
+        page_token = payload.get("page_token") or ""
+        if not page_token:
+            break
+
+    _DOCX_BLOCKS_CACHE[doc_id] = (items, now + _DOCX_BLOCKS_TTL)
+    return items, None
+
+
+def stream_docx_image(file_token: str):
+    """拉 docx 内嵌的图片（drive/v1/medias/{token}/download）。
+
+    返回 (iterator, content_type) 或 (None, None)。
+    需要权限：drive:drive （或更细粒度 drive:file:readonly）。
+    """
+    token = _get_tenant_token()
+    if not token:
+        return None, None
+
+    resp = http_requests.get(
+        f"https://open.feishu.cn/open-apis/drive/v1/medias/{file_token}/download",
+        headers={"Authorization": f"Bearer {token}"},
+        stream=True,
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        logger.error(
+            "stream_docx_image: status=%s token=%s body=%s",
+            resp.status_code, file_token[:12], resp.text[:200],
+        )
+        return None, None
+    ctype = resp.headers.get("Content-Type", "application/octet-stream")
+    return resp.iter_content(chunk_size=8192), ctype
+
+
+def stream_board_image(whiteboard_token: str):
+    """把画板（whiteboard/画布）导出为 PNG 返回。
+
+    目前飞书 API 路径：POST /open-apis/board/v1/whiteboards/{id}/download_as_image
+    权限：board:whiteboard:node:read （审批中）。
+    审批前这里会返回 None → 前端落到占位提示。
+    """
+    token = _get_tenant_token()
+    if not token:
+        return None, None
+
+    resp = http_requests.get(
+        f"https://open.feishu.cn/open-apis/board/v1/whiteboards/{whiteboard_token}/download_as_image",
+        headers={"Authorization": f"Bearer {token}"},
+        stream=True,
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        logger.warning(
+            "stream_board_image: status=%s whiteboard=%s body=%s",
+            resp.status_code, whiteboard_token[:12], resp.text[:200],
+        )
+        return None, None
+    ctype = resp.headers.get("Content-Type", "image/png")
+    return resp.iter_content(chunk_size=8192), ctype
+
+
 # ------------- 用户身份 token（OAuth 拿的 user_access_token）---------
 # 存在 user_tokens 表，OAuth 回调时由 auth.py 写入。
 # 这里只负责：按需取出 + 过期 refresh + 透传给调用方。

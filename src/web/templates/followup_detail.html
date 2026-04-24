@@ -84,16 +84,32 @@
   </div>
 </section>
 
-{# ============ 2. 会议总结：画板/妙记图片（Phase 2 后自动填入）============ #}
+{# ============ 2. 会议总结：从 docx 里抽出来的画板 + 内嵌图片 ============ #}
 <section class="section">
   <h3>会议总结</h3>
-  {% if r.minutes_images %}
+  {% if minutes_media %}
     <div class="fd-image-gallery">
-      {# Phase 2 到位后这里遍历 image_keys；目前占位 #}
+      {% for m in minutes_media %}
+        {% if m.kind == 'image' %}
+          <a class="fd-image-cell" href="/api/docimg/{{ m.token }}" target="_blank" rel="noopener">
+            <img src="/api/docimg/{{ m.token }}" alt="会议图 {{ loop.index }}" loading="lazy">
+          </a>
+        {% elif m.kind == 'board' %}
+          <a class="fd-image-cell" href="/api/docboard/{{ m.token }}" target="_blank" rel="noopener">
+            <img src="/api/docboard/{{ m.token }}" alt="会议画板 {{ loop.index }}" loading="lazy"
+                 onerror="this.closest('.fd-image-cell').classList.add('fd-image-failed')">
+            <span class="fd-image-hint">画板（点击在飞书打开）</span>
+          </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% elif minutes_media_error %}
+    <div class="section-hint">
+      无法读取文档块（{{ minutes_media_error }}）。权限审批后会自动显示。
     </div>
   {% else %}
     <div class="section-hint">
-      待 AI 从飞书文档中提取画板/妙记图片（权限审批后自动生效）。
+      本次纪要中未找到画板或图片。
     </div>
   {% endif %}
 </section>
