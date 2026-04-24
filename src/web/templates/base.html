@@ -1129,18 +1129,28 @@
     color: var(--neutral-400);
   }
 
-  /* 妙记 picker 浮层：覆盖在 minutes 字段上方，scroll 内容，点外关闭 */
+  /* 妙记 picker 浮层：居中 sheet，风格对齐飞书原生 chooseContact */
   .minutes-panel {
     position: fixed;
-    left: 12px; right: 12px;
-    top: 64px;
-    max-height: calc(100vh - 100px);
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 32px));
+    max-height: min(560px, calc(100vh - 80px));
     background: var(--surface);
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    border-radius: 12px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.18);
     z-index: 200;
     display: flex; flex-direction: column;
     overflow: hidden;
+  }
+  /* 浮层背后的半透明遮罩，和飞书原生一致 */
+  .minutes-panel::before {
+    content: '';
+    position: fixed;
+    left: -100vw; top: -100vh;
+    width: 300vw; height: 300vh;
+    background: rgba(0,0,0,0.3);
+    z-index: -1;
   }
   .minutes-panel-head {
     display: flex; align-items: center;

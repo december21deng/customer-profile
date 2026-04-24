@@ -511,12 +511,29 @@
     var docsPickerBtn = document.getElementById('docs-picker-btn');
     var docsEnvHint  = document.getElementById('docs-env-hint');
 
-    // 浏览器 fallback：先假设不在飞书，按钮置灰 + 点了给提示
+    // 浏览器 fallback + docsPicker 失败兜底：弹 URL 粘贴提示
+    function promptDocsUrl() {
+      var url = window.prompt('选择文档不可用。请粘贴飞书会议纪要链接（支持 docx / wiki）：', '');
+      if (!url) return;
+      url = url.trim();
+      if (!/^https?:\/\//.test(url)) {
+        alert('链接必须以 http:// 或 https:// 开头');
+        return;
+      }
+      if (!/\/(docx|wiki|docs)\//.test(url)) {
+        alert('请粘贴会议纪要链接（docx / wiki），不是表格或多维表');
+        return;
+      }
+      var name = url.split('/').pop() || '会议纪要';
+      onDocsPick({ url: url, title: name.length > 30 ? name.slice(0, 30) + '…' : name });
+    }
+
     docsEnvHint.hidden = false;
     docsPickerBtn.classList.add('disabled');
     var docsClickStub = function(e) {
       e.preventDefault();
-      alert('请在飞书客户端内打开小程序以选择会议纪要');
+      // 浏览器里点按钮 → 直接弹 URL 粘贴（不再光 alert）
+      promptDocsUrl();
     };
     docsPickerBtn.addEventListener('click', docsClickStub);
 
@@ -583,7 +600,6 @@
         if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
           docsEnvHint.hidden = true;
           docsPickerBtn.classList.remove('disabled');
-          // 删掉浏览器的 stub alert，不然会和原生 handler 一起触发
           docsPickerBtn.removeEventListener('click', docsClickStub);
           docsPickerBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -602,7 +618,13 @@
               },
               fail: function(err) {
                 console.error('docsPicker failed:', err);
-                alert('选择失败：' + JSON.stringify(err));
+                // 用户取消不提示（errCode 为负数或特定值）；其他错误兜底到手动粘贴
+                var code = err && (err.errCode || err.errno);
+                if (code === -1 || code === 102) {
+                  // 102 是飞书内部错误，常见于某些环境 docsPicker 不可用；
+                  // 兜底：弹 prompt 让用户粘贴 URL
+                  promptDocsUrl();
+                }
               },
             });
           });
