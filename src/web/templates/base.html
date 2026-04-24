@@ -1095,6 +1095,25 @@
     margin-left: 6px;
   }
 
+  /* 会议时间：日期一行 + 两个时间一行，中间"至" */
+  .time-range {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .time-range .tr-date { width: 100%; }
+  .time-range .tr-times {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .time-range .tr-time { flex: 1; min-width: 0; }
+  .time-range .tr-sep {
+    color: var(--neutral-400);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
   .form-submit {
     display: flex;
     justify-content: center;

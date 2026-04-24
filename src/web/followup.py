@@ -63,15 +63,48 @@ def _extract_doc_id(url: str) -> str | None:
     return None
 
 
-def _parse_meeting_date(s: str) -> str | None:
-    """`datetime-local` 输入 'YYYY-MM-DDTHH:MM'。不超过现在。"""
+_HHMM_RE = re.compile(r"^\d{2}:\d{2}$")
+
+
+def _parse_meeting_time_range(
+    date_s: str, start_s: str, end_s: str,
+) -> tuple[str | None, str | None, str | None]:
+    """把（YYYY-MM-DD, HH:MM, HH:MM）组合成 (meeting_date_iso, end_hhmm, error)。
+
+    规则:
+    - 日期格式 YYYY-MM-DD；开始/结束 HH:MM
+    - 日期不能晚于今天（允许今天的任意时间，哪怕是将来几小时 —— 方便填会议刚结束场景）
+    - 结束时间严格大于开始时间
+    """
     try:
-        dt = datetime.fromisoformat(s)
+        date_only = datetime.strptime(date_s, "%Y-%m-%d").date()
     except Exception:
-        return None
-    if dt > datetime.now():
-        return None
-    return dt.isoformat(timespec="minutes")
+        return None, None, "请选择有效日期"
+
+    if not _HHMM_RE.match(start_s) or not _HHMM_RE.match(end_s):
+        return None, None, "请选择开始和结束时间"
+
+    try:
+        start_h, start_m = map(int, start_s.split(":"))
+        end_h, end_m = map(int, end_s.split(":"))
+        start_dt = datetime.combine(date_only, datetime.min.time()).replace(hour=start_h, minute=start_m)
+        end_dt = datetime.combine(date_only, datetime.min.time()).replace(hour=end_h, minute=end_m)
+    except Exception:
+        return None, None, "时间格式不正确"
+
+    if end_dt <= start_dt:
+        return None, None, "结束时间必须晚于开始时间"
+
+    # 日期本身不能是未来（允许今天）
+    today = datetime.now().date()
+    if date_only > today:
+        return None, None, "日期不能晚于今天"
+
+    return (
+        start_dt.isoformat(timespec="minutes"),
+        end_s,
+        None,
+    )
 
 
 def _fetch_customer(customer_id: str) -> dict | None:
@@ -124,10 +157,13 @@ async def followup_submit(
     background_tasks: BackgroundTasks,
     minutes_url: str = Form(...),
     transcript_url: str = Form(...),
-    meeting_date: str = Form(...),
+    meeting_date: str = Form(...),        # YYYY-MM-DD
+    meeting_start_time: str = Form(...),  # HH:MM
+    meeting_end_time: str = Form(...),    # HH:MM
     location: str = Form(...),
     our_attendees: str = Form(...),      # JSON: [{"open_id":..,"name":..}]
     client_attendees: str = Form(...),   # JSON: ["name1", "name2"]
+    other_attendees: str = Form(""),     # JSON: ["name1", ...]；可选，默认空
     background: str = Form(...),
     photos: list[UploadFile] = File(default_factory=list),
     _csrf: None = Depends(require_csrf_form),
@@ -140,9 +176,12 @@ async def followup_submit(
         "minutes_url": minutes_url,
         "transcript_url": transcript_url,
         "meeting_date": meeting_date,
+        "meeting_start_time": meeting_start_time,
+        "meeting_end_time": meeting_end_time,
         "location": location,
         "our_attendees": our_attendees,
         "client_attendees": client_attendees,
+        "other_attendees": other_attendees,
         "background": background,
     }
     errors: dict[str, str] = {}
@@ -159,10 +198,12 @@ async def followup_submit(
     elif not (transcript_s.startswith("http://") or transcript_s.startswith("https://")):
         errors["transcript_url"] = "请填写有效的妙记链接"
 
-    # 2. 时间
-    meeting_iso = _parse_meeting_date(meeting_date.strip())
-    if not meeting_iso:
-        errors["meeting_date"] = "请选择有效时间（不可晚于当前）"
+    # 2. 时间：日期 + 起止
+    meeting_iso, end_hhmm, time_err = _parse_meeting_time_range(
+        meeting_date.strip(), meeting_start_time.strip(), meeting_end_time.strip(),
+    )
+    if time_err:
+        errors["meeting_date"] = time_err
 
     # 3. 地点
     location_s = location.strip()
@@ -190,6 +231,16 @@ async def followup_submit(
     client_list = [n for n in client_list if len(n) <= MAX_CLIENT_ATTENDEE_NAME]
     if not client_list:
         errors["client_attendees"] = "至少填 1 位客户参会人"
+
+    # 5b. 其他人员（可选）
+    try:
+        other_list = json.loads(other_attendees) if other_attendees else []
+    except json.JSONDecodeError:
+        other_list = []
+    if not isinstance(other_list, list):
+        other_list = []
+    other_list = [str(n).strip() for n in other_list if str(n).strip()]
+    other_list = [n for n in other_list if len(n) <= MAX_CLIENT_ATTENDEE_NAME]
 
     # 6. 会议背景
     bg_s = background.strip()
@@ -245,18 +296,22 @@ async def followup_submit(
             conn.execute(
                 """
                 INSERT INTO followup_records (
-                    id, customer_id, owner_id, meeting_date,
-                    location, our_attendees, client_attendees, background,
+                    id, customer_id, owner_id,
+                    meeting_date, meeting_end_time,
+                    location, our_attendees, client_attendees, other_attendees,
+                    background,
                     minutes_doc_url, minutes_doc_id, transcript_url,
                     photo_image_key, photo_image_keys,
                     source_type, created_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    record_id, customer_id, owner_id, meeting_iso,
+                    record_id, customer_id, owner_id,
+                    meeting_iso, end_hhmm,
                     location_s,
                     json.dumps(our_list, ensure_ascii=False),
                     json.dumps(client_list, ensure_ascii=False),
+                    json.dumps(other_list, ensure_ascii=False),
                     bg_s,
                     minutes_url.strip(), doc_id, transcript_s,
                     first_key, json.dumps(image_keys, ensure_ascii=False),
@@ -303,14 +358,18 @@ def regen_wiki(record_id: str, request: Request, background_tasks: BackgroundTas
     return {"ok": True, "record_id": record_id}
 
 
-def _format_meeting_date(s: str | None) -> str:
+def _format_meeting_date(s: str | None, end_hhmm: str | None = None) -> str:
+    """返回 "2026-04-24 09:05 - 10:30"；没 end_hhmm 就回退到老单点格式。"""
     if not s:
         return "—"
     try:
         dt = datetime.fromisoformat(s)
     except Exception:
         return s[:16]
-    return f"{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.strftime('%H:%M')}"
+    base = f"{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.strftime('%H:%M')}"
+    if end_hhmm and _HHMM_RE.match(end_hhmm):
+        return f"{base} - {end_hhmm}"
+    return base
 
 
 def _safe_json_list(raw: str | None) -> list:
@@ -354,6 +413,7 @@ def followup_detail(request: Request, record_id: str):
     r = dict(row)
     our_list = _safe_json_list(r.get("our_attendees"))
     client_list = _safe_json_list(r.get("client_attendees"))
+    other_list = _safe_json_list(r.get("other_attendees"))
     # photo_image_keys（多图 JSON 数组）优先；否则 fallback 到 legacy 单图
     photo_keys = _safe_json_list(r.get("photo_image_keys"))
     if not photo_keys and r.get("photo_image_key"):
@@ -376,7 +436,10 @@ def followup_detail(request: Request, record_id: str):
             "r": r,
             "our_list": our_list,
             "client_list": client_list,
-            "date_display": _format_meeting_date(r.get("meeting_date")),
+            "other_list": other_list,
+            "date_display": _format_meeting_date(
+                r.get("meeting_date"), r.get("meeting_end_time"),
+            ),
             "owner_name": owner_name,
             "owner_avatar": owner_avatar,
         },

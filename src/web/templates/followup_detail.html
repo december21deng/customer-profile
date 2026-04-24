@@ -51,6 +51,16 @@
           {% endif %}
         </span>
       </div>
+      {% if other_list %}
+      <div class="v-sub">
+        <span class="v-sub-k">其他</span>
+        <span class="v-sub-v">
+          {% for name in other_list %}
+            <span class="chip-tag"><span>{{ name }}</span></span>
+          {% endfor %}
+        </span>
+      </div>
+      {% endif %}
     </div>
   </div>
 

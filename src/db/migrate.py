@@ -42,6 +42,9 @@ def _run_column_migrations(conn: sqlite3.Connection) -> int:
             ("photo_image_keys", "TEXT NOT NULL DEFAULT '[]'"),
             # v0.7: 从 docx 里 ingest 的画板/图片（非销售手动上传）
             ("minutes_media", "TEXT NOT NULL DEFAULT '[]'"),
+            # v0.8: 其他人员 + 会议结束时间
+            ("other_attendees", "TEXT"),
+            ("meeting_end_time", "TEXT"),
         ]:
             if _add_col_if_missing(conn, "followup_records", col, decl):
                 added += 1

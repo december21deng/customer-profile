@@ -94,6 +94,8 @@ SCHEMA = [
         location          TEXT,
         our_attendees     TEXT,                   -- JSON: [{"open_id":..,"name":..}]
         client_attendees  TEXT,                   -- 逗号/顿号分隔原文
+        other_attendees   TEXT,                   -- JSON: ["name1",...] 其他人员（律师、顾问等）
+        meeting_end_time  TEXT,                   -- HH:MM，和 meeting_date 同一天
         background        TEXT,
         minutes_doc_url   TEXT,                   -- 会议纪要 docx URL 原文
         minutes_doc_id    TEXT,                   -- 从 URL 提取的 doc_id

@@ -52,11 +52,20 @@
     </div>
 
     <div class="form-field">
-      <label class="form-label" for="f-date">
+      <label class="form-label">
         会议时间<span class="req">*</span>
       </label>
-      <input class="form-input" id="f-date" name="meeting_date" type="datetime-local"
-             value="{{ values.meeting_date or '' }}" required>
+      <div class="time-range">
+        <input class="form-input tr-date" id="f-date" name="meeting_date"
+               type="date" value="{{ values.meeting_date or '' }}" required>
+        <div class="tr-times">
+          <input class="form-input tr-time" id="f-start" name="meeting_start_time"
+                 type="time" value="{{ values.meeting_start_time or '' }}" required>
+          <span class="tr-sep">至</span>
+          <input class="form-input tr-time" id="f-end" name="meeting_end_time"
+                 type="time" value="{{ values.meeting_end_time or '' }}" required>
+        </div>
+      </div>
       {% if errors.meeting_date %}
         <div class="form-error">{{ errors.meeting_date }}</div>
       {% endif %}
@@ -132,6 +141,38 @@
              value="{{ values.client_attendees or '' }}">
       {% if errors.client_attendees %}
         <div class="form-error">{{ errors.client_attendees }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label class="form-label">
+        其他人员
+        <span class="form-hint-inline">（律师 / 顾问 / 第三方等，可不填）</span>
+      </label>
+      <div class="tag-input" id="other-wrap">
+        <div class="tag-list" id="other-chips"></div>
+        <div class="tag-actions picker-anchor">
+          <button type="button" class="picker-btn" id="other-add-trigger">
+            <span class="picker-plus">+</span>
+            <span>添加其他人员</span>
+          </button>
+
+          <div class="picker-panel picker-panel-compact" id="other-add-panel" hidden>
+            <input type="text" class="picker-search" id="other-add-input"
+                   placeholder="输入姓名或身份" maxlength="40"
+                   autocomplete="off" autocorrect="off"
+                   autocapitalize="none" spellcheck="false">
+            <div class="picker-mini-actions">
+              <button type="button" class="picker-mini-btn" id="other-add-cancel">取消</button>
+              <button type="button" class="picker-mini-btn picker-mini-primary" id="other-add-confirm" disabled>添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" name="other_attendees" id="f-other"
+             value="{{ values.other_attendees or '' }}">
+      {% if errors.other_attendees %}
+        <div class="form-error">{{ errors.other_attendees }}</div>
       {% endif %}
     </div>
   </div>
@@ -464,6 +505,95 @@
 
     clientCtl.render();
 
+    // -------- 其他人员（和客户参会人员同套交互） ---------------
+    var otherHidden = document.getElementById('f-other');
+    var otherState = [];
+    try {
+      var oraw = otherHidden.value;
+      if (oraw) otherState = JSON.parse(oraw) || [];
+    } catch(e) { otherState = []; }
+
+    var otherChips = document.getElementById('other-chips');
+    var otherCtl = makeTagList(
+      otherChips, otherHidden,
+      function() { return otherState; },
+      function(v) { otherState = v; },
+      function(name, idx) {
+        var el = document.createElement('span');
+        el.className = 'chip-tag';
+        el.innerHTML = '<span>' + name + '</span>' +
+                       '<button type="button" class="chip-rm" aria-label="移除">×</button>';
+        el.querySelector('.chip-rm').onclick = function() {
+          otherState.splice(idx, 1);
+          otherCtl.sync();
+        };
+        return el;
+      }
+    );
+
+    var otherTrigger = document.getElementById('other-add-trigger');
+    var otherPanel   = document.getElementById('other-add-panel');
+    var otherInput   = document.getElementById('other-add-input');
+    var otherConfirm = document.getElementById('other-add-confirm');
+    var otherCancel  = document.getElementById('other-add-cancel');
+    var otherAnchor  = otherTrigger.closest('.picker-anchor');
+
+    function otherShowPanel() {
+      otherTrigger.hidden = true;
+      otherPanel.hidden = false;
+      otherInput.value = '';
+      otherConfirm.disabled = true;
+      setTimeout(function() { otherInput.focus(); }, 0);
+    }
+    function otherHidePanel() {
+      otherPanel.hidden = true;
+      otherTrigger.hidden = false;
+      otherInput.value = '';
+      otherConfirm.disabled = true;
+    }
+    function otherSyncBtn() {
+      otherConfirm.disabled = otherInput.value.trim().length === 0;
+    }
+    function otherCommit() {
+      var name = otherInput.value.trim().replace(/\s+/g, ' ');
+      if (!name) return;
+      var lower = name.toLowerCase();
+      var dup = otherState.some(function(n) { return String(n).toLowerCase() === lower; });
+      if (dup) {
+        otherInput.value = '';
+        otherSyncBtn();
+        return;
+      }
+      otherState.push(name);
+      otherCtl.sync();
+      otherInput.value = '';
+      otherSyncBtn();
+      otherInput.focus();
+    }
+
+    otherTrigger.addEventListener('click', function(e) { e.preventDefault(); otherShowPanel(); });
+    otherCancel .addEventListener('click', function(e) { e.preventDefault(); otherHidePanel(); });
+    otherConfirm.addEventListener('click', function(e) { e.preventDefault(); otherCommit(); });
+    otherInput.addEventListener('input', otherSyncBtn);
+    otherInput.addEventListener('keydown', function(e) {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+        e.preventDefault();
+        otherCommit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        otherHidePanel();
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (otherPanel.hidden) return;
+      if (otherAnchor.contains(e.target)) return;
+      otherCommit();
+      otherHidePanel();
+    });
+
+    otherCtl.render();
+
     // -------- 多图上传（预览 + 压缩） ------------------------
     var photoInput = document.getElementById('f-photos');
     var photoGrid  = document.getElementById('photo-grid');
@@ -615,10 +745,13 @@
       return {
         transcript_url: document.getElementById('f-transcript').value,
         minutes_url:    document.getElementById('f-minutes').value,
-        meeting_date:   document.getElementById('f-date').value,
+        meeting_date:       document.getElementById('f-date').value,
+        meeting_start_time: document.getElementById('f-start').value,
+        meeting_end_time:   document.getElementById('f-end').value,
         location:       document.getElementById('f-loc').value,
         our_attendees:  ourState.slice(),
         client_attendees: clientState.slice(),
+        other_attendees: (typeof otherState !== 'undefined') ? otherState.slice() : [],
         background:     document.getElementById('f-bg').value,
         _saved_at:      new Date().toISOString(),
       };
@@ -627,8 +760,11 @@
     function isFormEmpty() {
       var d = snapshotDraft();
       return !d.transcript_url && !d.minutes_url && !d.meeting_date &&
+             !d.meeting_start_time && !d.meeting_end_time &&
              !d.location && !d.background &&
-             d.our_attendees.length === 0 && d.client_attendees.length === 0;
+             d.our_attendees.length === 0 &&
+             d.client_attendees.length === 0 &&
+             (d.other_attendees || []).length === 0;
     }
 
     var draftTimer = null;
@@ -647,7 +783,7 @@
     }
 
     // 所有表单输入都挂上 debounce 保存
-    ['f-transcript','f-minutes','f-date','f-loc','f-bg','client-add-input'].forEach(function(id) {
+    ['f-transcript','f-minutes','f-date','f-start','f-end','f-loc','f-bg','client-add-input'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.addEventListener('input', saveDraftDebounced);
     });
@@ -681,6 +817,8 @@
       document.getElementById('f-transcript').value = draft.transcript_url || '';
       document.getElementById('f-minutes').value = draft.minutes_url || '';
       document.getElementById('f-date').value = draft.meeting_date || '';
+      document.getElementById('f-start').value = draft.meeting_start_time || '';
+      document.getElementById('f-end').value = draft.meeting_end_time || '';
       document.getElementById('f-loc').value = draft.location || '';
       document.getElementById('f-bg').value = draft.background || '';
       if (Array.isArray(draft.our_attendees)) {
@@ -692,6 +830,10 @@
       if (Array.isArray(draft.client_attendees)) {
         clientState = draft.client_attendees.slice();
         clientCtl.sync();
+      }
+      if (Array.isArray(draft.other_attendees)) {
+        otherState = draft.other_attendees.slice();
+        otherCtl.sync();
       }
       checkMinutes();
       checkTranscript();
@@ -736,6 +878,7 @@
     form.addEventListener('submit', function() {
       // 面板里如果还有未确认的名字，一并加上
       if (!clientPanel.hidden) clientCommit();
+      if (!otherPanel.hidden) otherCommit();
       // 把 JS 里攒的 photoFiles 塞进 <input type=file name=photos> 让它随 multipart 提交
       try {
         var dt = new DataTransfer();
