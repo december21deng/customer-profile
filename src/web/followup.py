@@ -384,6 +384,55 @@ def _safe_json_list(raw: str | None) -> list:
         return []
 
 
+_WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+_INGEST_IN_PROGRESS = {"queued", "fetching", "ingesting", "extracting", "committing"}
+
+
+def _format_meeting_date_parts(s: str | None) -> dict:
+    """'2026-04-24T09:00' → {month:'4月', day:24, weekday:'周四', time:'09:00', year:2026}."""
+    if not s:
+        return {"year": "", "month": "", "day": "", "weekday": "", "time": ""}
+    try:
+        dt = datetime.fromisoformat(s)
+    except Exception:
+        return {"year": "", "month": "", "day": s[:10], "weekday": "", "time": ""}
+    return {
+        "year": dt.year,
+        "month": f"{dt.month}月",
+        "day": dt.day,
+        "weekday": _WEEKDAY_CN[dt.weekday()],
+        "time": dt.strftime("%H:%M"),
+    }
+
+
+def _parse_our_people_detail(our_attendees_raw: str | None) -> list[dict]:
+    """our_attendees JSON → [{name, avatar, initial}, ...]. 详情页复用。"""
+    if not our_attendees_raw:
+        return []
+    try:
+        v = json.loads(our_attendees_raw)
+    except Exception:
+        return []
+    if not isinstance(v, list):
+        return []
+    out: list[dict] = []
+    for it in v:
+        if isinstance(it, dict):
+            name = (it.get("name") or "").strip()
+            if not name:
+                continue
+            out.append({
+                "name": name,
+                "avatar": it.get("avatar") or "",
+                "initial": name[:1],
+            })
+        elif isinstance(it, str):
+            s = it.strip()
+            if s:
+                out.append({"name": s, "avatar": "", "initial": s[:1]})
+    return out
+
+
 @router.get("/followup/{record_id}", response_class=HTMLResponse)
 def followup_detail(request: Request, record_id: str):
     conn = connect()
@@ -394,11 +443,13 @@ def followup_detail(request: Request, record_id: str):
                    c.name AS customer_name,
                    u.display_name AS crm_owner_name,
                    ut.display_name AS fs_owner_name,
-                   ut.avatar AS fs_owner_avatar
+                   ut.avatar AS fs_owner_avatar,
+                   ij.status AS ingest_status
             FROM followup_records r
             JOIN customers c ON c.id = r.customer_id
             LEFT JOIN crm_users u ON u.feishu_open_id = r.owner_id
             LEFT JOIN user_tokens ut ON ut.open_id = r.owner_id
+            LEFT JOIN ingest_jobs ij ON ij.record_id = r.id
             WHERE r.id = ?
             """,
             (record_id,),
@@ -413,7 +464,7 @@ def followup_detail(request: Request, record_id: str):
         )
 
     r = dict(row)
-    our_list = _safe_json_list(r.get("our_attendees"))
+    our_people = _parse_our_people_detail(r.get("our_attendees"))
     client_list = _safe_json_list(r.get("client_attendees"))
     other_list = _safe_json_list(r.get("other_attendees"))
     # photo_image_keys（多图 JSON 数组）优先；否则 fallback 到 legacy 单图
@@ -423,6 +474,29 @@ def followup_detail(request: Request, record_id: str):
     r["photo_keys"] = photo_keys
     # 从 docx ingest 时物化到本地的画板 / 图片（{kind, key} 列表）
     r["minutes_media_list"] = _safe_json_list(r.get("minutes_media"))
+    r["board_items"] = [m for m in r["minutes_media_list"] if m.get("kind") == "board"]
+
+    # AI 处理状态：让模板根据 ai_state 渲染 skeleton / 失败 / 正常
+    ingest_status = (r.get("ingest_status") or "").lower()
+    if ingest_status in _INGEST_IN_PROGRESS:
+        r["ai_state"] = "processing"
+    elif ingest_status == "failed":
+        r["ai_state"] = "failed"
+    else:
+        r["ai_state"] = "done"
+    # 画板单独判一个状态：还在 ingest 且尚未出画板 → processing；否则根据结果决定
+    if ingest_status in _INGEST_IN_PROGRESS and not r["board_items"]:
+        r["board_state"] = "processing"
+    elif ingest_status == "failed" and not r["board_items"]:
+        r["board_state"] = "failed"
+    else:
+        r["board_state"] = "done"
+
+    r["date_parts"] = _format_meeting_date_parts(r.get("meeting_date"))
+    r["date_end_time"] = r.get("meeting_end_time") or ""
+
+    # 总参会人数（hero meta pill）
+    r["attendee_total"] = len(our_people) + len(client_list) + len(other_list)
 
     owner_name = (
         r.get("crm_owner_name")
@@ -436,7 +510,7 @@ def followup_detail(request: Request, record_id: str):
         {
             "request": request,
             "r": r,
-            "our_list": our_list,
+            "our_people": our_people,
             "client_list": client_list,
             "other_list": other_list,
             "date_display": _format_meeting_date(
