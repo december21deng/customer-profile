@@ -1268,19 +1268,29 @@
   }
   .selected-card .m-card-reselect:active { opacity: 0.6; }
 
-  /* 会议时间：日期一行 + 两个时间一行，中间"至" */
+  /* 会议时间：日期 + 起止时间一行；窄屏自动换行 */
   .time-range {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .time-range .tr-date { width: 100%; }
-  .time-range .tr-times {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
   }
-  .time-range .tr-time { flex: 1; min-width: 0; }
+  .time-range .tr-date {
+    flex: 1 1 130px;   /* 优先抢位，最少 130px */
+    min-width: 120px;
+    max-width: 180px;
+  }
+  .time-range .tr-times {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+  }
+  .time-range .tr-time {
+    width: 72px;
+    flex-shrink: 0;
+    text-align: center;
+  }
   .time-range .tr-sep {
     color: var(--neutral-400);
     font-size: 14px;
