@@ -457,7 +457,15 @@ def fetch_docx_media(doc_id: str, access_token: str | None = None) -> tuple[list
             return [], data.get("msg") or f"code_{data.get('code')}"
 
         payload = data.get("data") or {}
-        for block in payload.get("items") or []:
+        raw_blocks = payload.get("items") or []
+        # 诊断：统计每种 block_type 出现多少次
+        from collections import Counter
+        type_counts = Counter((b.get("block_type") for b in raw_blocks))
+        logger.info(
+            "docx blocks doc_id=%s total=%d types=%s",
+            doc_id[:12], len(raw_blocks), dict(type_counts),
+        )
+        for block in raw_blocks:
             btype = block.get("block_type")
             if btype == BLOCK_TYPE_IMAGE:
                 tok = (block.get("image") or {}).get("token")

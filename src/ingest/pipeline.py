@@ -262,7 +262,7 @@ _EXTRACT_TOOL = {
     "input_schema": {
         "type": "object",
         "required": [
-            "summary", "journey_stage", "record_summary",
+            "summary", "journey_stage",
             "meeting_title", "progress_line",
             "next_actions", "contacts_delta",
         ],
@@ -277,21 +277,6 @@ _EXTRACT_TOOL = {
                 "enum": JOURNEY_STAGES,
                 "description": "客户当前所处阶段。以最新一次跟进为准。",
             },
-            "record_summary": {
-                "type": "string",
-                "description": (
-                    "仅针对本次 raw 纪要的结构化中文总结，详情页的「会议详情」会展示这段。"
-                    "必须按以下格式用编号分段（每段 1 行小标题 + 正文）："
-                    "\n1. <议题/主题>：<该议题下的关键信息 2-3 句>"
-                    "\n2. <议题/主题>：..."
-                    "\n3. <议题/主题>：..."
-                    "\n如有明确的下一步行动，单独加一段"
-                    "\n项目判断：<一句话写当前推进状态，例：'客户对 AI 产品明确意向，初步合作清晰，无明显风险'>"
-                    "\n下一步计划：<按 1/2/3 编号列 2-4 条可执行 action>"
-                    "\n全部用简体中文；人名/公司名/产品名保持原文。"
-                    "\n纪要信息不足时可写'纪要信息不足，需补要点'，不准留空。"
-                ),
-            },
             "meeting_title": {
                 "type": "string",
                 "maxLength": 20,
@@ -302,7 +287,7 @@ _EXTRACT_TOOL = {
                     "(1) 不含客户名（客户名已经在卡片头部显示）；"
                     "(2) 不含日期、时长；"
                     "(3) 不以'会议''纪要''沟通''交流'收尾；"
-                    "(4) 不要抄文档标题或复述 record_summary 开头。"
+                    "(4) 不要抄文档标题。"
                     "正例：'供应链合作探索'、'产品性能需求澄清'、"
                     "'合同条款二次谈判'、'样品实测结果复盘'、'2026 年度采购规划'。"
                     "反例：'会议纪要'(废话)、'ABENA 的会议'(带客户名)、"
@@ -385,7 +370,7 @@ def _clean_progress(p: str) -> str:
 _EXTRACT_SYSTEM = (
     "你是一个结构化提取助手。输入是一篇客户 wiki 文章（已由上游 LLM 沉淀）"
     "和一份新的飞书纪要 raw 文本。你只做信息抽取和分类，不做润色或编造。"
-    "【语言要求】不管输入是什么语言，所有输出字段（summary / record_summary / "
+    "【语言要求】不管输入是什么语言，所有输出字段（summary / "
     "meeting_title / progress_line / next_actions / contacts_delta 里的文字）"
     "必须全部使用简体中文。人名、公司名、产品名可以保留原文不翻译。"
     "如果字段在输入中找不到，就留空字符串或空数组。"
@@ -447,13 +432,13 @@ def _commit_sql(
     conn = connect()
     try:
         with transaction(conn):
+            # followup_records.summary 已废弃（UI 不再显示长摘要），不再写入
             conn.execute(
                 "UPDATE followup_records "
-                "SET summary = ?, meeting_title = ?, progress_line = ?, "
+                "SET meeting_title = ?, progress_line = ?, "
                 "    minutes_media = ? "
                 "WHERE id = ?",
                 (
-                    extract_result.get("record_summary") or "",
                     _clean_title(extract_result.get("meeting_title") or ""),
                     _clean_progress(extract_result.get("progress_line") or ""),
                     json.dumps(minutes_media, ensure_ascii=False),

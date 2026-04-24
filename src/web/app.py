@@ -182,7 +182,7 @@ def _fetch_followup_page(
         "SELECT",
         "  r.id, r.customer_id, r.meeting_date, r.location,",
         "  r.our_attendees, r.client_attendees,",
-        "  r.background, r.summary, r.photo_image_key,",
+        "  r.background, r.photo_image_key,",
         "  r.meeting_title, r.progress_line,",
         "  c.name AS customer_name",
         "FROM followup_records r",
@@ -196,13 +196,14 @@ def _fetch_followup_page(
         params.append(customer_id)
 
     if q:
+        # followup_records.summary 已废弃，搜索不再包含
         sql.append(
             "AND (c.name LIKE ? OR r.meeting_title LIKE ? "
             "     OR r.progress_line LIKE ? "
-            "     OR r.background LIKE ? OR r.summary LIKE ?)"
+            "     OR r.background LIKE ?)"
         )
         kw = f"%{q}%"
-        params.extend([kw, kw, kw, kw, kw])
+        params.extend([kw, kw, kw, kw])
 
     if cursor is not None:
         md, rid = cursor
