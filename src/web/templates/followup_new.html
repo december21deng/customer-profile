@@ -663,6 +663,16 @@
       return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
     }
 
+    // 飞书 search API 在 display_info / description 里带 <b>关键词:</b> 这种高亮标记
+    // 我们不做高亮渲染，直接剥掉（同时处理 HTML 实体形式 &lt;b&gt;）
+    function stripHl(s) {
+      return String(s || '')
+        .replace(/<\/?b>/gi, '')
+        .replace(/&lt;\/?b&gt;/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     function renderMinutesItems(items, append) {
       if (!append) minutesBody.innerHTML = '';
       if (!items.length && !append) {
@@ -670,16 +680,18 @@
         return;
       }
       items.forEach(function(it) {
+        var title = stripHl(it.title || '未命名');
+        var desc = stripHl(it.description || '');
         var el = document.createElement('button');
         el.type = 'button';
         el.className = 'minutes-picker-item';
         el.setAttribute('data-url', it.url || '');
         el.setAttribute('data-token', it.token || '');
-        el.setAttribute('data-title', it.title || '');
-        var titleLine = '<div class="m-title">' + escMin(it.title || '未命名') + '</div>';
+        el.setAttribute('data-title', title);
+        var titleLine = '<div class="m-title">' + escMin(title) + '</div>';
         var metaLine = '';
-        if (it.description) {
-          metaLine = '<div class="m-desc">' + escMin(it.description) + '</div>';
+        if (desc) {
+          metaLine = '<div class="m-desc">' + escMin(desc) + '</div>';
         }
         el.innerHTML = '<span class="m-icon">' + MIC_SVG + '</span><div class="m-body">' +
                        titleLine + metaLine + '</div>';
