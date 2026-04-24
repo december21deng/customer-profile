@@ -26,27 +26,44 @@
       {%- if f.ai_state == 'failed' %} is-failed{% endif -%}"
        href="/followup/{{ f.id }}">
 
+      {# Title:
+         - 全局列表（show_customer=True）: title=客户名，subtitle=会议主题（已剥掉客户前缀）
+         - 客户详情 tab: title=会议主题，无 subtitle
+         公司是更大的分类，当 title 让扫读按客户聚焦。#}
       <div class="fc-title-row">
         <span class="fc-title-bar" aria-hidden="true"></span>
-        <div class="fc-title
-          {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
-          {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
-          {% if f.ai_state == 'processing' %}
-            <span class="fc-skel-bar"></span>
-          {% elif f.ai_state == 'failed' %}
-            AI 处理失败
+        <div class="fc-title-block">
+          {% if show_customer %}
+            <div class="fc-title">{{ f.customer_name }}</div>
+            <div class="fc-subtitle
+              {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+              {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+              {% if f.ai_state == 'processing' %}
+                <span class="fc-skel-bar"></span>
+              {% elif f.ai_state == 'failed' %}
+                AI 处理失败
+              {% else %}
+                {{ f.meeting_subtitle or '—' }}
+              {% endif %}
+            </div>
           {% else %}
-            {{ f.meeting_title or '—' }}
+            <div class="fc-title
+              {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+              {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+              {% if f.ai_state == 'processing' %}
+                <span class="fc-skel-bar"></span>
+              {% elif f.ai_state == 'failed' %}
+                AI 处理失败
+              {% else %}
+                {{ f.meeting_title or '—' }}
+              {% endif %}
+            </div>
           {% endif %}
         </div>
       </div>
 
-      {# KV: 客户 / 时间 / 地点 / 进展（紧跟标题；客户只在全局列表显示）#}
+      {# KV: 时间 / 地点 / 进展（客户已经是 title，不再重复）#}
       <div class="fc-kv">
-        {% if show_customer %}
-          <div class="fc-kv-k">客户</div>
-          <div class="fc-kv-v fc-kv-v-cust">{{ f.customer_name }}</div>
-        {% endif %}
         <div class="fc-kv-k">时间</div>
         <div class="fc-kv-v">
           {% if f.date_parts.month %}

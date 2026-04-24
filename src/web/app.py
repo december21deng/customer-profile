@@ -329,6 +329,16 @@ def _decorate_followups(rows: list[dict]) -> list[dict]:
         d["other_names"] = _parse_attendee_names(d.get("other_attendees"))
         d["date_parts"] = _format_meeting_date_parts(d.get("meeting_date"))
         d["date_display"] = _format_meeting_date(d.get("meeting_date"))
+        # 剥离 meeting_title 里重复的客户名前缀：
+        # "英科再生合作洽谈跟进" + customer_name="英科再生" → "合作洽谈跟进"
+        meeting_title = (d.get("meeting_title") or "").strip()
+        customer_name = (d.get("customer_name") or "").strip()
+        subtitle = meeting_title
+        if customer_name and meeting_title.startswith(customer_name):
+            stripped = meeting_title[len(customer_name):].lstrip("·-—、，, ").strip()
+            if stripped:
+                subtitle = stripped
+        d["meeting_subtitle"] = subtitle
         # AI 状态：pipeline 还在跑 → "AI 处理中…"；失败 → 提示失败；成功（字段有值）→ 不用标签
         status = (d.get("ingest_status") or "").lower()
         if status in _INGEST_IN_PROGRESS:
