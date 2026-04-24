@@ -165,22 +165,24 @@ def sign_jssdk(url: str) -> dict | None:
     ticket = _get_jsapi_ticket()
     if not ticket:
         return None
-    # 去掉 hash；但 query string 保留（必须和 location.href.split('#')[0] 对齐）
+    # 去掉 hash；query string 保留（必须和 location.href.split('#')[0] 对齐）
     url = url.split("#", 1)[0]
-    timestamp_int = int(time.time())
+    # 飞书 h5sdk.config 要求 **毫秒级** timestamp（13 位数字）
+    # 见 https://open.feishu.cn/document/uYjL24iN/uQjMuQjMuQjM/authentication/h5sdkconfig
+    timestamp_ms = int(time.time() * 1000)
     nonce_str = secrets.token_hex(8)
-    # 签名时 timestamp 是字符串拼接（和 WeChat / Feishu spec 一致）
+    # 签名串用 timestamp 的纯字符串值（和服务端一致）
     string1 = (
         f"jsapi_ticket={ticket}"
         f"&noncestr={nonce_str}"
-        f"&timestamp={timestamp_int}"
+        f"&timestamp={timestamp_ms}"
         f"&url={url}"
     )
+    # SHA1 默认返 lowercase（Feishu 要求 lowercase）
     signature = hashlib.sha1(string1.encode("utf-8")).hexdigest()
-    # 返回的 JSON 里 timestamp 传 **int**（飞书 h5sdk.config 要求 number 类型）
     return {
         "appId": LARK_APP_ID,
-        "timestamp": timestamp_int,
+        "timestamp": timestamp_ms,   # number 类型，毫秒级
         "nonceStr": nonce_str,
         "signature": signature,
     }
