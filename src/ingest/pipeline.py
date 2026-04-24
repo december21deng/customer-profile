@@ -47,6 +47,7 @@ from src.lark_client import (
     fetch_docx_media,
     fetch_docx_raw,
     get_user_access_token,
+    resolve_wiki_node,
     stream_board_image,
     stream_docx_image,
 )
@@ -491,7 +492,8 @@ def _load_record(record_id: str) -> dict | None:
         row = conn.execute(
             """
             SELECT r.id, r.customer_id, r.meeting_date, r.minutes_doc_id,
-                   r.owner_id, r.background, c.name AS customer_name
+                   r.minutes_doc_url, r.owner_id, r.background,
+                   c.name AS customer_name
             FROM followup_records r
             JOIN customers c ON c.id = r.customer_id
             WHERE r.id = ?
@@ -536,7 +538,7 @@ async def run(record_id: str) -> None:
         jobs.set_status(record_id, "failed", error=msg)
         return
 
-    # 拿上传者的 user_access_token（有 docx:document:readonly scope）
+    # 拿上传者的 user_access_token（有 docx:document:readonly + wiki:node:read scope）
     # 没拿到（如：密码登录、OAuth scope 没加、token 过期且没 refresh）→ None，
     # fetch_docx_* 会 fallback 到 tenant token（对大部分文档会 forBidden，但至少不挂）
     owner_user_token: str | None = None
@@ -547,6 +549,28 @@ async def run(record_id: str) -> None:
         except Exception:
             logger.exception("[%s] get_user_access_token failed (continue anyway)", log_prefix)
 
+    # wiki URL 需要先解析成真实 docx id（/wiki/<token> 不能直接调 docx API）
+    effective_doc_id = rec["minutes_doc_id"]
+    if "/wiki/" in (rec.get("minutes_doc_url") or ""):
+        try:
+            resolved = await asyncio.to_thread(
+                resolve_wiki_node, rec["minutes_doc_id"], owner_user_token,
+            )
+        except Exception:
+            logger.exception("[%s] resolve_wiki_node crashed", log_prefix)
+            resolved = None
+        if resolved and resolved != rec["minutes_doc_id"]:
+            logger.info(
+                "[%s] wiki → docx resolved: %s → %s",
+                log_prefix, rec["minutes_doc_id"][:10], resolved[:10],
+            )
+            effective_doc_id = resolved
+        elif not resolved:
+            logger.warning(
+                "[%s] wiki resolve returned nothing; falling back to raw token (likely to fail)",
+                log_prefix,
+            )
+
     # --- 串行化：同客户一把锁 + 全局并发 3 ---
     async with lock.acquire(customer_id):
         # ---- Fetch -----------------------------------------------------
@@ -554,7 +578,7 @@ async def run(record_id: str) -> None:
         try:
             fetched = await asyncio.to_thread(
                 fetch_and_save,
-                rec["minutes_doc_id"],
+                effective_doc_id,
                 customer_id,
                 rec["meeting_date"],
                 owner_user_token,
@@ -574,7 +598,7 @@ async def run(record_id: str) -> None:
         try:
             minutes_media = await asyncio.to_thread(
                 fetch_media_and_save,
-                rec["minutes_doc_id"],
+                effective_doc_id,
                 owner_user_token,
             )
             logger.info(

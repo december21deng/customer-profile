@@ -322,13 +322,14 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
     # scope 必须显式请求才能把权限注入 user_access_token：
     #   - contact:user:search：搜同事（1.0.7 已发布 ✅）
     #   - docx:document:readonly：读会议纪要 docx（ingest pipeline 用）
+    #   - wiki:node:read：解析 /wiki/ URL → 真实 docx id
     #   - offline_access：拿 refresh_token（1.0.8 审核中，暂不加，等批了再加）
     if not code:
         params = {
             "app_id": LARK_APP_ID,
             "redirect_uri": redirect_uri,
             "state": _sign_state(_safe_next(next)),
-            "scope": "contact:user:search docx:document:readonly",
+            "scope": "contact:user:search docx:document:readonly wiki:node:read",
         }
         return RedirectResponse(
             url=f"{LARK_AUTHORIZE_URL}?{urlencode(params)}",

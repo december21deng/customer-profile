@@ -237,6 +237,45 @@ _docx_raw_cache: dict = {}  # {doc_id: (text, expire_at)}
 _DOCX_RAW_TTL = 300  # 5 分钟
 
 
+def resolve_wiki_node(wiki_token: str, access_token: str | None = None) -> str | None:
+    """把飞书 `/wiki/<token>` URL 里的 token 解析成真实的 docx document_id。
+
+    调的是 wiki/v2/spaces/get_node。obj_type=docx 时返回 obj_token；否则 None。
+    需要权限：wiki:node:read（或 wiki:wiki / wiki:wiki:readonly）+ 调用者对该 wiki 节点有读权限。
+    """
+    token = access_token or _get_tenant_token()
+    if not token:
+        return None
+    try:
+        resp = http_requests.get(
+            "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node",
+            params={"token": wiki_token},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("resolve_wiki_node: request failed token=%s", wiki_token[:12])
+        return None
+    if data.get("code", -1) != 0:
+        logger.warning(
+            "resolve_wiki_node failed: code=%s msg=%s token=%s",
+            data.get("code"), data.get("msg"), wiki_token[:12],
+        )
+        return None
+    node = (data.get("data") or {}).get("node") or {}
+    obj_type = node.get("obj_type")
+    obj_token = node.get("obj_token")
+    # 支持 docx / doc（老版）两种底层类型；其他类型（sheet / bitable）我们处理不了
+    if obj_type not in ("docx", "doc"):
+        logger.warning(
+            "wiki node obj_type=%s not supported (token=%s)",
+            obj_type, wiki_token[:12],
+        )
+        return None
+    return obj_token or None
+
+
 def fetch_docx_raw(doc_id: str, access_token: str | None = None) -> tuple[str | None, str | None]:
     """拉飞书 docx 原文（纯文字，跳过富内容）。进程内缓存 5 分钟。
 
