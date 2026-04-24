@@ -523,8 +523,23 @@
 
     (window.__feishuReady || Promise.reject(new Error('no_feishu')))
       .then(function() {
-        // h5sdk 已 config 成功，检查 tt.* 方法是否存在
-        // （老版本飞书 chooseContact 可能没有，兜底保留原 fallback）
+        // 打印出具体哪些 tt.* 方法可用，排查"SDK ready 但 API 没注入"的情况
+        var ttProbe = {
+          tt_defined: typeof tt !== 'undefined',
+          chooseContact: typeof tt !== 'undefined' && typeof tt.chooseContact === 'function',
+          docsPicker: typeof tt !== 'undefined' && typeof tt.docsPicker === 'function',
+        };
+        console.log('[jssdk] tt API probe:', ttProbe);
+        if (!ttProbe.chooseContact && !ttProbe.docsPicker) {
+          // config 过了但 tt 上啥都没有 —— 通常是飞书版本太老 / jsApiList 未批
+          var diag = document.createElement('div');
+          diag.style.cssText = 'position:fixed;bottom:56px;left:12px;right:12px;' +
+            'background:#FFFBE6;border:1px solid #FFE58F;border-radius:8px;' +
+            'padding:8px 12px;font-size:12px;color:#874D00;z-index:9999;' +
+            'font-family:monospace;';
+          diag.textContent = '[jssdk] config ok 但 tt.* 方法全部缺失：' + JSON.stringify(ttProbe);
+          document.body.appendChild(diag);
+        }
 
         // -------- 我方参会：chooseContact（飞书原生多选）--------
         if (typeof tt !== 'undefined' && typeof tt.chooseContact === 'function') {
@@ -564,6 +579,9 @@
         // -------- 会议纪要：docsPicker（飞书原生选文档）----------
         if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
           docsEnvHint.hidden = true;
+          docsPickerBtn.classList.remove('disabled');
+          // 删掉浏览器的 stub alert，不然会和原生 handler 一起触发
+          docsPickerBtn.removeEventListener('click', docsClickStub);
           docsPickerBtn.addEventListener('click', function(e) {
             e.preventDefault();
             tt.docsPicker({
@@ -581,6 +599,7 @@
               },
               fail: function(err) {
                 console.error('docsPicker failed:', err);
+                alert('选择失败：' + JSON.stringify(err));
               },
             });
           });
