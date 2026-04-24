@@ -568,14 +568,17 @@
   }
   .followup-card:active { background: var(--neutral-50); }
 
-  /* 标题行：flex 容器，左侧 2px 色条 + 标题文字
-     色条用 flex item + align-self:stretch + 上下 margin，让竖线比 line-box 短，
-     视觉上跟标题文字高度对齐（不是整个 line-height 盒） */
+  /* 标题行：包裹 title-line（带色条）+ subtitle（不带色条）
+     margin-left:-8px 把整块往左拉，让色条落到卡片 padding 内 */
   .followup-card .fc-title-row {
+    margin: 0 0 8px -8px;
+    min-width: 0;
+  }
+  /* title 行（只有标题带色条） */
+  .followup-card .fc-title-line {
     display: flex;
     align-items: stretch;
     gap: 6px;
-    margin: 0 0 4px -8px;    /* 往左拉 8px，让色条落到卡片 padding 内 */
     min-width: 0;
   }
   .followup-card .fc-title-bar {
@@ -588,14 +591,10 @@
   .followup-card.is-processing .fc-title-bar { background: var(--neutral-300, #C9CDD4); }
   .followup-card.is-failed     .fc-title-bar { background: #F54A45; }
 
-  /* 标题块（容纳 title + subtitle）*/
-  .followup-card .fc-title-block {
-    flex: 1;
-    min-width: 0;
-  }
-
   /* 标题（公司名 / 或会议主题 —— 中文规范 16px / 500 medium） */
   .followup-card .fc-title {
+    flex: 1;
+    min-width: 0;
     font-size: 16px;
     font-weight: 500;
     line-height: 1.5;
@@ -607,8 +606,10 @@
     white-space: nowrap;    /* 公司名单行；过长省略 */
   }
 
-  /* Subtitle（会议主题，已剥掉客户前缀）*/
+  /* Subtitle（会议主题，已剥掉客户前缀）——
+     单独一行，不带色条；padding-left:8px 对齐 title 文字（2px bar + 6px gap）*/
   .followup-card .fc-subtitle {
+    padding-left: 8px;
     font-size: 13px;
     font-weight: 400;
     line-height: 1.55;
@@ -627,18 +628,19 @@
   }
 
 
-  /* KV 区（时间 / 地点 / 进展）—— 中文排版：14px value，1.6 行高 */
+  /* KV 区（时间 / 地点 / 进展）—— 跟客户详情页 .kv 一致：
+     column-gap 28px, key 13px neutral-400, value 14px neutral-800 */
   .followup-card .fc-kv {
     display: grid;
     grid-template-columns: auto 1fr;
-    column-gap: 12px;
-    row-gap: 4px;
+    column-gap: 28px;
+    row-gap: 6px;
     margin: 8px 0 10px;
     font-variant-numeric: tabular-nums;
     line-height: 1.6;
   }
   .followup-card .fc-kv-k {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--neutral-400);
     font-weight: 400;
     align-self: baseline;

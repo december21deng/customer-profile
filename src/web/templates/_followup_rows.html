@@ -31,21 +31,10 @@
          - 客户详情 tab: title=会议主题，无 subtitle
          公司是更大的分类，当 title 让扫读按客户聚焦。#}
       <div class="fc-title-row">
-        <span class="fc-title-bar" aria-hidden="true"></span>
-        <div class="fc-title-block">
+        <div class="fc-title-line">
+          <span class="fc-title-bar" aria-hidden="true"></span>
           {% if show_customer %}
             <div class="fc-title">{{ f.customer_name }}</div>
-            <div class="fc-subtitle
-              {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
-              {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
-              {% if f.ai_state == 'processing' %}
-                <span class="fc-skel-bar"></span>
-              {% elif f.ai_state == 'failed' %}
-                AI 处理失败
-              {% else %}
-                {{ f.meeting_subtitle or '—' }}
-              {% endif %}
-            </div>
           {% else %}
             <div class="fc-title
               {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
@@ -60,6 +49,19 @@
             </div>
           {% endif %}
         </div>
+        {% if show_customer %}
+          <div class="fc-subtitle
+            {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+            {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+            {% if f.ai_state == 'processing' %}
+              <span class="fc-skel-bar"></span>
+            {% elif f.ai_state == 'failed' %}
+              AI 处理失败
+            {% else %}
+              {{ f.meeting_subtitle or '—' }}
+            {% endif %}
+          </div>
+        {% endif %}
       </div>
 
       {# KV: 时间 / 地点 / 进展（客户已经是 title，不再重复）#}
