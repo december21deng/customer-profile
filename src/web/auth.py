@@ -323,8 +323,8 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
     #   - contact:user:search：搜同事
     #   - docx:document:readonly：读 docx blocks（text + block 结构）
     #   - wiki:node:read：解析 /wiki/ URL → 真实 docx id
-    #   - docs:document.media:download：下载 docx 内嵌图片（drive/v1/medias/.../download）
-    #   - board:whiteboard:node:read：导出画板为 PNG（board/v1/whiteboards/.../download_as_image）
+    #   - drive:drive:readonly：下载 docx 内嵌图片（宽权限，覆盖所有 drive 读操作）
+    #   - board:whiteboard:node:read：导出画板为 PNG
     #   - minutes:minutes.search:read：自研妙记 picker 搜索
     #   - minutes:minutes.basic:read：妙记验证卡片的元信息拉取
     if not code:
@@ -336,7 +336,7 @@ def auth_lark(code: str = "", state: str = "", next: str = "/customers"):
                 "contact:user:search "
                 "docx:document:readonly "
                 "wiki:node:read "
-                "docs:document.media:download "
+                "drive:drive:readonly "
                 "board:whiteboard:node:read "
                 "minutes:minutes.search:read "
                 "minutes:minutes.basic:read"
