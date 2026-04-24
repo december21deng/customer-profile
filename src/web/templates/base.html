@@ -557,7 +557,7 @@
   .followup-card {
     position: relative;
     display: block;
-    padding: 14px 14px 14px 20px;
+    padding: 14px 16px;
     background: var(--surface);
     text-decoration: none;
     color: inherit;
@@ -567,20 +567,6 @@
     border-top: 1px solid var(--neutral-100);
   }
   .followup-card:active { background: var(--neutral-50); }
-
-  /* 左侧 2px 状态色条 */
-  .followup-card::before {
-    content: "";
-    position: absolute;
-    left: 10px;
-    top: 18px;
-    bottom: 18px;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--blue-600);   /* 正常：Feishu 蓝 */
-  }
-  .followup-card.is-processing::before { background: var(--neutral-300, #C9CDD4); }
-  .followup-card.is-failed::before     { background: #F54A45; }
 
   /* 顶部 meta：客户（可选）· 日期时间 · 地点 */
   .followup-card .fc-meta-top {
@@ -607,11 +593,13 @@
     color: var(--neutral-300);
   }
 
-  /* 标题 */
+  /* 标题（带左侧 2px 状态色条，飞书规范：色条跟标题文字等高）
+     色条通过负 left 值往卡片 padding 里探出去，标题文字与其他元素保持左对齐 */
   .followup-card .fc-title {
-    font-size: 15px;
+    position: relative;
+    font-size: 16px;
     font-weight: 600;
-    line-height: 1.45;
+    line-height: 1.5;
     color: var(--neutral-900);
     margin: 0 0 4px;
     display: -webkit-box;
@@ -620,13 +608,25 @@
     overflow: hidden;
     word-break: break-word;
   }
+  .followup-card .fc-title::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--blue-600);   /* 正常：Feishu 蓝 */
+  }
+  .followup-card.is-processing .fc-title::before { background: var(--neutral-300, #C9CDD4); }
+  .followup-card.is-failed     .fc-title::before { background: #F54A45; }
 
   /* 一句话进展 */
   .followup-card .fc-progress {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--neutral-500);
-    line-height: 1.6;
-    margin: 0 0 8px;
+    line-height: 1.55;
+    margin: 0 0 10px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
