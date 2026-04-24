@@ -1095,6 +1095,148 @@
     margin-left: 6px;
   }
 
+  /* 原生 picker 按钮（飞书 chooseContact / docsPicker / 自研妙记） */
+  .picker-native-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    background: var(--blue-600);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .picker-native-btn:active { background: var(--blue-700, #2856cc); }
+  .picker-native-btn:disabled,
+  .picker-native-btn.disabled {
+    background: var(--neutral-100);
+    color: var(--neutral-400);
+    cursor: not-allowed;
+  }
+  .picker-native-icon {
+    font-size: 16px;
+    line-height: 1;
+  }
+  .picker-or-sep {
+    margin: 10px 0 6px;
+    font-size: 12px;
+    color: var(--neutral-400);
+  }
+  .picker-env-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--neutral-400);
+  }
+
+  /* 妙记 picker 浮层：覆盖在 minutes 字段上方，scroll 内容，点外关闭 */
+  .minutes-panel {
+    position: fixed;
+    left: 12px; right: 12px;
+    top: 64px;
+    max-height: calc(100vh - 100px);
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 200;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .minutes-panel-head {
+    display: flex; align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--neutral-100);
+  }
+  .minutes-panel-head .picker-search {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--neutral-200);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .minutes-panel-close {
+    width: 30px; height: 30px;
+    border: 0;
+    background: transparent;
+    color: var(--neutral-400);
+    font-size: 22px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .minutes-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .minutes-picker-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--neutral-100);
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+  .minutes-picker-item:last-child { border-bottom: 0; }
+  .minutes-picker-item:active { background: var(--neutral-50); }
+  .minutes-picker-item .m-icon { font-size: 18px; line-height: 1.4; flex-shrink: 0; }
+  .minutes-picker-item .m-body { flex: 1; min-width: 0; }
+  .minutes-picker-item .m-title {
+    font-size: 14px; color: var(--neutral-900); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .minutes-picker-item .m-desc {
+    margin-top: 3px;
+    font-size: 12px; color: var(--neutral-400);
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .minutes-more {
+    display: block; width: 100%;
+    padding: 12px;
+    text-align: center;
+    border: 0;
+    background: transparent;
+    color: var(--blue-600);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .minutes-more:active { background: var(--neutral-50); }
+
+  /* 妙记验证卡片：粘贴 URL 后 hydrate 的 title/duration/date */
+  .minutes-card {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--neutral-200);
+    border-radius: 10px;
+    background: var(--neutral-50);
+    display: flex; align-items: center; gap: 12px;
+    min-height: 46px;
+  }
+  .minutes-card.error {
+    background: #FFF1F0;
+    border-color: #FFCCC7;
+  }
+  .minutes-card .m-card-icon { font-size: 18px; flex-shrink: 0; }
+  .minutes-card .m-card-body { flex: 1; min-width: 0; }
+  .minutes-card .m-card-title {
+    font-size: 14px; color: var(--neutral-900); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .minutes-card .m-card-meta {
+    margin-top: 2px;
+    font-size: 12px; color: var(--neutral-400);
+  }
+  .minutes-card .m-card-ok { color: #52C41A; font-size: 13px; flex-shrink: 0; }
+  .minutes-card .m-card-err { color: #E54545; font-size: 13px; }
+  .minutes-card .m-card-hint { color: var(--neutral-400); font-size: 13px; }
+
   /* 会议时间：日期一行 + 两个时间一行，中间"至" */
   .time-range {
     display: flex;

@@ -525,6 +525,117 @@ def stream_board_image(whiteboard_token: str, access_token: str | None = None):
     return resp.iter_content(chunk_size=8192), ctype
 
 
+# ------------- 妙记（Minutes）搜索 + 元信息 --------------------------
+#
+# 搜索用的是飞书官方 lark-cli 用的那个未公开接口：
+#     POST /open-apis/minutes/v1/minutes/search
+# 源码：github.com/larksuite/cli/shortcuts/minutes/minutes_search.go
+# Auth：**仅 user_access_token**（AuthTypes: ["user"]）
+# Scope：minutes:minutes.search:read
+# 必须至少传 query / owner_ids / participant_ids / create_time 之一
+
+def search_minutes(
+    user_access_token: str,
+    query: str = "",
+    create_time_start: str | None = None,   # ISO 8601
+    create_time_end: str | None = None,
+    page_size: int = 15,
+    page_token: str = "",
+) -> tuple[dict | None, str | None]:
+    """返回 ({ items, has_more, page_token }, error)。出错时前者 None。"""
+    if not user_access_token:
+        return None, "no_user_token"
+
+    body: dict = {}
+    q = (query or "").strip()
+    if q:
+        body["query"] = q[:50]
+
+    filter_obj: dict = {}
+    if create_time_start or create_time_end:
+        ct: dict = {}
+        if create_time_start:
+            ct["start_time"] = create_time_start
+        if create_time_end:
+            ct["end_time"] = create_time_end
+        if ct:
+            filter_obj["create_time"] = ct
+    if filter_obj:
+        body["filter"] = filter_obj
+
+    if not body:
+        return None, "empty_query"
+
+    params: dict = {"page_size": max(1, min(page_size, 30))}
+    if page_token:
+        params["page_token"] = page_token
+
+    try:
+        resp = http_requests.post(
+            "https://open.feishu.cn/open-apis/minutes/v1/minutes/search",
+            headers={
+                "Authorization": f"Bearer {user_access_token}",
+                "Content-Type": "application/json",
+            },
+            params=params,
+            json=body,
+            timeout=15,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("search_minutes: request failed")
+        return None, "network_error"
+
+    if data.get("code", -1) != 0:
+        logger.warning(
+            "search_minutes failed: code=%s msg=%s",
+            data.get("code"), data.get("msg"),
+        )
+        return None, data.get("msg") or f"code_{data.get('code')}"
+
+    payload = data.get("data") or {}
+    return {
+        "items": payload.get("items") or [],
+        "has_more": bool(payload.get("has_more")),
+        "page_token": payload.get("page_token") or "",
+    }, None
+
+
+def get_minute_meta(
+    minute_token: str,
+    user_access_token: str,
+) -> tuple[dict | None, str | None]:
+    """GET /open-apis/minutes/v1/minutes/{minute_token}
+
+    返回 ({ title, duration, create_time, owner_id, url, ... }, error)。
+    Scope: minutes:minutes.basic:read
+    """
+    if not user_access_token:
+        return None, "no_user_token"
+
+    try:
+        resp = http_requests.get(
+            f"https://open.feishu.cn/open-apis/minutes/v1/minutes/{minute_token}",
+            headers={"Authorization": f"Bearer {user_access_token}"},
+            timeout=10,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("get_minute_meta: request failed token=%s", minute_token[:12])
+        return None, "network_error"
+
+    if data.get("code", -1) != 0:
+        logger.info(
+            "get_minute_meta: code=%s msg=%s token=%s",
+            data.get("code"), data.get("msg"), minute_token[:12],
+        )
+        return None, data.get("msg") or f"code_{data.get('code')}"
+
+    # 飞书返的 data.minute = { token, owner_id, create_time, title, cover, duration, url }
+    minute = (data.get("data") or {}).get("minute") or {}
+    return minute, None
+
+
 # ------------- 用户身份 token（OAuth 拿的 user_access_token）---------
 # 存在 user_tokens 表，OAuth 回调时由 auth.py 写入。
 # 这里只负责：按需取出 + 过期 refresh + 透传给调用方。

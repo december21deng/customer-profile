@@ -23,28 +23,56 @@
   <div class="form-section">
     <div class="form-field">
       <label class="form-label" for="f-transcript">
-        妙记链接<span class="req">*</span>
+        妙记<span class="req">*</span>
       </label>
+      <button type="button" class="picker-native-btn" id="minutes-picker-btn">
+        <span class="picker-native-icon">🔍</span>
+        <span>选择妙记</span>
+      </button>
+      <div class="picker-or-sep">或粘贴链接：</div>
       <div class="input-with-status">
         <input class="form-input" id="f-transcript" name="transcript_url" type="url"
-               placeholder="粘贴飞书妙记链接"
+               placeholder="https://xxx.feishu.cn/minutes/..."
                value="{{ values.transcript_url or '' }}" required>
         <span class="input-status" id="f-transcript-status" hidden></span>
       </div>
+      <div class="minutes-card" id="minutes-card" hidden></div>
       {% if errors.transcript_url %}
         <div class="form-error">{{ errors.transcript_url }}</div>
       {% endif %}
+
+      <!-- 自研妙记 picker 浮层（Feishu & 浏览器都用同一套） -->
+      <div class="minutes-panel" id="minutes-panel" hidden>
+        <div class="minutes-panel-head">
+          <input type="text" class="picker-search" id="minutes-search"
+                 placeholder="搜索主题 / 主讲人..."
+                 autocomplete="off" autocorrect="off"
+                 autocapitalize="none" spellcheck="false">
+          <button type="button" class="minutes-panel-close" id="minutes-panel-close" aria-label="关闭">×</button>
+        </div>
+        <div class="minutes-panel-body" id="minutes-panel-body">
+          <div class="picker-empty">加载中…</div>
+        </div>
+      </div>
     </div>
 
     <div class="form-field">
       <label class="form-label" for="f-minutes">
-        会议纪要链接<span class="req">*</span>
+        会议纪要<span class="req">*</span>
       </label>
+      <button type="button" class="picker-native-btn" id="docs-picker-btn" hidden>
+        <span class="picker-native-icon">📁</span>
+        <span>选择会议纪要</span>
+      </button>
+      <div class="picker-or-sep" id="docs-or-sep" hidden>或粘贴链接：</div>
       <div class="input-with-status">
         <input class="form-input" id="f-minutes" name="minutes_url" type="url"
-               placeholder="粘贴飞书会议纪要 docx 链接"
+               placeholder="粘贴飞书会议纪要链接（docx / wiki）"
                value="{{ values.minutes_url or '' }}" required>
         <span class="input-status" id="f-minutes-status" hidden></span>
+      </div>
+      <div class="picker-env-hint" id="docs-env-hint" hidden>
+        ⓘ 在飞书客户端内可直接点击选择
       </div>
       {% if errors.minutes_url %}
         <div class="form-error">{{ errors.minutes_url }}</div>
@@ -92,6 +120,12 @@
       <div class="tag-input" id="our-wrap">
         <div class="tag-list" id="our-chips"></div>
         <div class="tag-actions picker-anchor">
+          <!-- 飞书原生按钮：tt.chooseContact 多选 -->
+          <button type="button" class="picker-native-btn" id="our-native-btn" hidden>
+            <span class="picker-native-icon">👥</span>
+            <span>选择同事（多选）</span>
+          </button>
+          <!-- 浏览器 fallback：自研搜索面板 -->
           <button type="button" class="picker-btn" id="our-pick-btn">
             <span class="picker-plus">+</span>
             <span>选择同事</span>
@@ -412,6 +446,290 @@
       if (pickPanel.hidden) return;
       if (!pickAnchor.contains(e.target)) hidePanel();
     });
+
+    // -------- 环境检测：是否在飞书客户端内 -----------------------
+    // window.h5sdk + window.tt 都存在才算飞书；否则是普通浏览器
+    var isFeishuClient = (typeof window.h5sdk !== 'undefined') && (typeof window.tt !== 'undefined');
+
+    // -------- 我方参会人员：飞书原生多选（tt.chooseContact）------
+    // 飞书里：优先显示"选择同事（多选）"按钮；点它弹飞书原生面板一次选多人
+    // 浏览器里：继续用上面已有的自研搜索面板
+    var ourNativeBtn = document.getElementById('our-native-btn');
+    if (isFeishuClient && typeof tt.chooseContact === 'function') {
+      ourNativeBtn.hidden = false;
+      pickBtn.hidden = true;
+
+      ourNativeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var chosenIds = ourState.map(function(p) { return p.id; }).filter(Boolean);
+        tt.chooseContact({
+          multi: true,
+          externalContact: false,
+          enableChooseDepartment: false,
+          chosenIds: chosenIds,
+          success: function(res) {
+            var picked = (res && res.data) || [];
+            picked.forEach(function(u) {
+              var oid = u.openId || u.open_id;
+              if (!oid) return;
+              if (ourState.some(function(p) { return p.id === oid; })) return;
+              var avatar = '';
+              if (u.avatarUrls) {
+                // 飞书可能返 object 或 array
+                avatar = u.avatarUrls['72'] || u.avatarUrls.avatar_72
+                       || u.avatarUrls['middle'] || u.avatarUrls['thumb'] || '';
+              }
+              ourState.push({ id: oid, name: u.name || '?', avatar: avatar });
+            });
+            ourCtl.sync();
+          },
+          fail: function(err) {
+            console.error('chooseContact failed:', err);
+            alert('选择同事失败：' + (err && err.errMsg ? err.errMsg : '未知错误'));
+          },
+        });
+      });
+    }
+
+    // -------- 会议纪要：tt.docsPicker（飞书原生选文档）------------
+    var docsPickerBtn = document.getElementById('docs-picker-btn');
+    var docsOrSep    = document.getElementById('docs-or-sep');
+    var docsEnvHint  = document.getElementById('docs-env-hint');
+    if (isFeishuClient && typeof tt.docsPicker === 'function') {
+      docsPickerBtn.hidden = false;
+      docsOrSep.hidden = false;
+
+      docsPickerBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        tt.docsPicker({
+          success: function(res) {
+            var list = (res && res.fileList) || [];
+            if (list.length === 0) return;
+            var url = list[0].filePath || '';
+            // 类型校验：只接受 docx / wiki
+            var ok = /\/(docx|wiki|docs)\//.test(url);
+            var minutesInput = document.getElementById('f-minutes');
+            if (!ok) {
+              alert('请选择会议纪要文档（支持 docx / wiki，不支持表格/多维表等）');
+              return;
+            }
+            minutesInput.value = url;
+            // 复用已有的校验逻辑让状态条变绿
+            checkMinutes();
+          },
+          fail: function(err) {
+            console.error('docsPicker failed:', err);
+          },
+        });
+      });
+    } else {
+      docsEnvHint.hidden = false;
+    }
+
+    // -------- 妙记：自研 picker（调 /api/minutes/search）+ 验证卡片 -----
+    var minutesBtn   = document.getElementById('minutes-picker-btn');
+    var minutesPanel = document.getElementById('minutes-panel');
+    var minutesInputEl = document.getElementById('f-transcript');
+    var minutesSearchEl = document.getElementById('minutes-search');
+    var minutesBody  = document.getElementById('minutes-panel-body');
+    var minutesClose = document.getElementById('minutes-panel-close');
+    var minutesCard  = document.getElementById('minutes-card');
+    var minutesSearchTimer = null;
+    var minutesLastQ = '';
+    var minutesPageToken = '';
+    var minutesHasMore = false;
+    var minutesLoading = false;
+
+    function minutesShowPanel() {
+      minutesPanel.hidden = false;
+      minutesSearchEl.value = '';
+      minutesLastQ = '';
+      minutesPageToken = '';
+      minutesBody.innerHTML = '<div class="picker-empty">加载中…</div>';
+      setTimeout(function() { minutesSearchEl.focus(); }, 0);
+      minutesLoadPage('', '', true);
+    }
+
+    function minutesHidePanel() {
+      minutesPanel.hidden = true;
+    }
+
+    function escMin(s) {
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      });
+    }
+
+    function minutesFmtDuration(sec) {
+      sec = parseInt(sec || 0, 10);
+      if (!sec) return '';
+      var h = Math.floor(sec / 3600);
+      var m = Math.floor((sec % 3600) / 60);
+      if (h > 0) return h + ' 小时 ' + m + ' 分';
+      return m + ' 分';
+    }
+
+    function minutesFmtDate(iso) {
+      if (!iso) return '';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
+    }
+
+    function renderMinutesItems(items, append) {
+      if (!append) minutesBody.innerHTML = '';
+      if (!items.length && !append) {
+        minutesBody.innerHTML = '<div class="picker-empty">没有找到妙记</div>';
+        return;
+      }
+      items.forEach(function(it) {
+        var el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'minutes-picker-item';
+        el.setAttribute('data-url', it.url || '');
+        el.setAttribute('data-token', it.token || '');
+        var titleLine = '<div class="m-title">' + escMin(it.title || '未命名') + '</div>';
+        var metaLine = '';
+        if (it.description) {
+          metaLine = '<div class="m-desc">' + escMin(it.description) + '</div>';
+        }
+        el.innerHTML = '<span class="m-icon">🎙</span><div class="m-body">' +
+                       titleLine + metaLine + '</div>';
+        minutesBody.appendChild(el);
+      });
+      // 分页"加载更多"
+      var oldMore = minutesBody.querySelector('.minutes-more');
+      if (oldMore) oldMore.remove();
+      if (minutesHasMore) {
+        var more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'minutes-more';
+        more.textContent = '加载更多';
+        more.onclick = function() { minutesLoadPage(minutesLastQ, minutesPageToken, false); };
+        minutesBody.appendChild(more);
+      }
+    }
+
+    function minutesLoadPage(q, pageToken, reset) {
+      if (minutesLoading) return;
+      minutesLoading = true;
+      var url = '/api/minutes/search?q=' + encodeURIComponent(q || '') +
+                (pageToken ? '&page_token=' + encodeURIComponent(pageToken) : '');
+      fetch(url)
+        .then(function(resp) {
+          if (resp.status === 401) {
+            minutesBody.innerHTML = '<div class="picker-empty">请用飞书账号登录后再使用（<a href="/auth/lark?next=' +
+                                    encodeURIComponent(location.pathname + location.search) +
+                                    '">去登录</a>）</div>';
+            throw new Error('unauthorized');
+          }
+          if (resp.status === 403) {
+            minutesBody.innerHTML = '<div class="picker-empty">「妙记搜索」权限审批中，请暂时粘贴链接</div>';
+            throw new Error('forbidden');
+          }
+          return resp.json();
+        })
+        .then(function(data) {
+          minutesHasMore = !!data.has_more;
+          minutesPageToken = data.page_token || '';
+          renderMinutesItems(data.items || [], !reset);
+        })
+        .catch(function(err) {
+          if (err && (err.message === 'unauthorized' || err.message === 'forbidden')) return;
+          console.error('minutes search failed:', err);
+          minutesBody.innerHTML = '<div class="picker-empty">搜索失败，请重试</div>';
+        })
+        .finally(function() { minutesLoading = false; });
+    }
+
+    minutesBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      minutesShowPanel();
+    });
+    minutesClose.addEventListener('click', function(e) {
+      e.preventDefault();
+      minutesHidePanel();
+    });
+    minutesSearchEl.addEventListener('input', function() {
+      var q = minutesSearchEl.value.trim();
+      minutesLastQ = q;
+      minutesPageToken = '';
+      if (minutesSearchTimer) clearTimeout(minutesSearchTimer);
+      minutesSearchTimer = setTimeout(function() {
+        minutesBody.innerHTML = '<div class="picker-empty">搜索中…</div>';
+        minutesLoadPage(q, '', true);
+      }, 300);
+    });
+    minutesSearchEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { e.preventDefault(); minutesHidePanel(); }
+    });
+    minutesBody.addEventListener('click', function(e) {
+      var btn = e.target.closest('.minutes-picker-item');
+      if (!btn) return;
+      var url = btn.getAttribute('data-url') || '';
+      if (!url) return;
+      minutesInputEl.value = url;
+      minutesHidePanel();
+      checkTranscript();
+      refreshMinutesCard(url);
+    });
+    document.addEventListener('click', function(e) {
+      if (minutesPanel.hidden) return;
+      if (minutesPanel.contains(e.target)) return;
+      if (e.target === minutesBtn || minutesBtn.contains(e.target)) return;
+      minutesHidePanel();
+    });
+
+    // ---- 妙记验证卡片（粘贴 URL 后 debounce 调 meta API）----------
+    var cardTimer = null;
+    function refreshMinutesCard(url) {
+      if (!url || !/\/minutes\/[A-Za-z0-9]/.test(url)) {
+        minutesCard.hidden = true;
+        minutesCard.innerHTML = '';
+        return;
+      }
+      minutesCard.hidden = false;
+      minutesCard.innerHTML = '<span class="m-card-hint">验证中…</span>';
+      fetch('/api/minutes/meta?url=' + encodeURIComponent(url))
+        .then(function(resp) {
+          if (!resp.ok) return resp.json().then(function(d) { throw d; });
+          return resp.json();
+        })
+        .then(function(d) {
+          minutesCard.classList.remove('error');
+          var metas = [];
+          if (d.duration_secs) metas.push(minutesFmtDuration(d.duration_secs));
+          if (d.create_time) metas.push(minutesFmtDate(d.create_time));
+          minutesCard.innerHTML =
+            '<span class="m-card-icon">🎙</span>' +
+            '<div class="m-card-body">' +
+            '  <div class="m-card-title">' + escMin(d.title || '未命名') + '</div>' +
+            '  <div class="m-card-meta">' + escMin(metas.join(' · ')) + '</div>' +
+            '</div>' +
+            '<span class="m-card-ok">✓ 已验证</span>';
+        })
+        .catch(function(err) {
+          minutesCard.classList.add('error');
+          var msg = '无法验证妙记';
+          var detail = err && err.detail;
+          if (detail === 'forbidden') msg = '无权访问该妙记';
+          else if (detail === 'invalid_url') msg = '链接格式不正确';
+          else if (detail === 'feishu_login_required') msg = '请用飞书账号登录';
+          else if (String(detail).indexOf('minutes_scope_required') >= 0) msg = '妙记权限审批中';
+          minutesCard.innerHTML = '<span class="m-card-err">✗ ' + escMin(msg) + '</span>';
+        });
+    }
+    // 粘贴 / 手动输入 URL 时触发
+    minutesInputEl.addEventListener('input', function() {
+      if (cardTimer) clearTimeout(cardTimer);
+      cardTimer = setTimeout(function() {
+        refreshMinutesCard(minutesInputEl.value.trim());
+      }, 500);
+    });
+    // 页面初始有值（草稿恢复 / 表单回填）也跑一次
+    if (minutesInputEl.value.trim()) {
+      refreshMinutesCard(minutesInputEl.value.trim());
+    }
 
     // -------- 客户参会人员 -----------------------------------
     var clientHidden = document.getElementById('f-client');

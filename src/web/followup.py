@@ -24,8 +24,10 @@ from fastapi.templating import Jinja2Templates
 from src.db.connection import connect, transaction
 from src.ingest.pipeline import run as run_ingest_pipeline
 from src.lark_client import (
+    get_minute_meta,
     get_user_access_token,
     search_feishu_users,
+    search_minutes,
     sign_jssdk,
 )
 from src.web.auth import require_csrf_form
@@ -512,6 +514,124 @@ def jssdk_config(url: str):
     if cfg is None:
         raise HTTPException(status_code=502, detail="failed to sign jssdk config")
     return cfg
+
+
+# ---- 妙记 picker 代理接口 --------------------------------------------
+# 后端用**当前登录用户的 user_access_token** 调飞书 minutes API。
+# 浏览器拿到的已是脱敏后的精简 JSON。
+
+# 妙记 URL 里 minute_token 的正则（和文档的一致：24+ 字母数字）
+MINUTE_TOKEN_RE = re.compile(r"/minutes/([A-Za-z0-9]{12,})")
+
+
+def _parse_minute_token(s: str) -> str | None:
+    """接受 URL 或 token 本身；URL 里抽 token。"""
+    s = (s or "").strip()
+    if not s:
+        return None
+    if s.startswith("http"):
+        m = MINUTE_TOKEN_RE.search(s)
+        return m.group(1) if m else None
+    # 裸 token：粗校验
+    if re.fullmatch(r"[A-Za-z0-9]{12,}", s):
+        return s
+    return None
+
+
+def _need_feishu_user_token(request: Request) -> str:
+    """从 request.state.uid 取用户的 user_access_token；失败抛 HTTPException。"""
+    open_id = getattr(request.state, "uid", None)
+    if not open_id or not open_id.startswith("ou_"):
+        raise HTTPException(status_code=401, detail="feishu_login_required")
+    token = get_user_access_token(open_id)
+    if not token:
+        raise HTTPException(status_code=401, detail="reauth_required")
+    return token
+
+
+@router.get("/api/minutes/search")
+def minutes_search(request: Request, q: str = "", page_token: str = "", page_size: int = 15):
+    """搜索当前用户有权限的妙记。
+
+    - 前端每次打开 picker / 搜索关键字变化时调这里
+    - 没 query 时用"最近 30 天创建"作为默认 filter（API 不允许完全空 filter）
+    """
+    user_token = _need_feishu_user_token(request)
+
+    q = (q or "").strip()[:50]
+    # API 必须至少给 query / filter 之一；query 为空时用时间范围
+    create_start = create_end = None
+    if not q:
+        from datetime import timedelta
+        now = datetime.now()
+        create_start = (now - timedelta(days=30)).isoformat(timespec="seconds")
+        create_end = now.isoformat(timespec="seconds")
+
+    data, err = search_minutes(
+        user_token,
+        query=q,
+        create_time_start=create_start,
+        create_time_end=create_end,
+        page_size=page_size,
+        page_token=page_token,
+    )
+    if err:
+        # 常见错误：scope 未批（FORBIDDEN）、用户没权限
+        if "forbid" in err.lower() or "99991663" in err or "scope" in err.lower():
+            raise HTTPException(status_code=403, detail="minutes_scope_required")
+        raise HTTPException(status_code=502, detail=f"upstream: {err}")
+
+    # 透传给前端，只保留展示字段
+    items = []
+    for it in (data or {}).get("items", []):
+        meta = it.get("meta_data") or {}
+        items.append({
+            "token": it.get("token"),
+            "title": it.get("display_info") or "未命名",
+            "description": meta.get("description") or "",
+            "url": meta.get("app_link") or "",
+            "avatar": meta.get("avatar") or "",
+        })
+    return {
+        "items": items,
+        "has_more": (data or {}).get("has_more", False),
+        "page_token": (data or {}).get("page_token", ""),
+    }
+
+
+@router.get("/api/minutes/meta")
+def minutes_meta(request: Request, token: str = "", url: str = ""):
+    """取单条妙记元信息，用于前端验证卡片。token 或 url 任填一个。"""
+    user_token = _need_feishu_user_token(request)
+
+    minute_token = _parse_minute_token(token or url)
+    if not minute_token:
+        raise HTTPException(status_code=400, detail="invalid_url")
+
+    meta, err = get_minute_meta(minute_token, user_token)
+    if err:
+        if "forbid" in err.lower() or "99991663" in err:
+            raise HTTPException(status_code=403, detail="forbidden")
+        raise HTTPException(status_code=502, detail=f"upstream: {err}")
+    if not meta:
+        raise HTTPException(status_code=404, detail="not_found")
+
+    # 飞书 create_time 是 Unix 秒字符串
+    ct = meta.get("create_time")
+    try:
+        ct_iso = datetime.fromtimestamp(int(ct)).isoformat(timespec="seconds") if ct else None
+    except Exception:
+        ct_iso = None
+
+    return {
+        "token": meta.get("token"),
+        "title": meta.get("title") or "未命名",
+        "duration_secs": int(meta.get("duration") or 0),
+        "create_time": ct_iso,
+        "owner_id": meta.get("owner_id"),
+        "url": meta.get("url") or "",
+        "cover": meta.get("cover") or "",
+    }
 
 
 @router.get("/api/image/{image_key}")
