@@ -64,14 +64,11 @@
         会议纪要<span class="req">*</span>
       </label>
 
-      <!-- 未选状态：按钮 + 小字链接作为兜底（docsPicker 失败时能用）-->
-      <div class="picker-row" id="docs-picker-row">
-        <button type="button" class="picker-btn" id="docs-picker-btn">
-          <span class="picker-plus">+</span>
-          <span>选择会议纪要</span>
-        </button>
-        <button type="button" class="picker-text-alt" id="docs-paste-btn">手动粘贴链接</button>
-      </div>
+      <!-- 未选状态：按钮 -->
+      <button type="button" class="picker-btn" id="docs-picker-btn">
+        <span class="picker-plus">+</span>
+        <span>选择会议纪要</span>
+      </button>
 
       <!-- 已选状态：卡片 + 重选 -->
       <div class="selected-card" id="docs-card" hidden></div>
@@ -514,29 +511,12 @@
     var docsPickerBtn = document.getElementById('docs-picker-btn');
     var docsEnvHint  = document.getElementById('docs-env-hint');
 
-    // 浏览器 fallback + docsPicker 失败兜底：弹 URL 粘贴提示
-    function promptDocsUrl() {
-      var url = window.prompt('选择文档不可用。请粘贴飞书会议纪要链接（支持 docx / wiki）：', '');
-      if (!url) return;
-      url = url.trim();
-      if (!/^https?:\/\//.test(url)) {
-        alert('链接必须以 http:// 或 https:// 开头');
-        return;
-      }
-      if (!/\/(docx|wiki|docs)\//.test(url)) {
-        alert('请粘贴会议纪要链接（docx / wiki），不是表格或多维表');
-        return;
-      }
-      var name = url.split('/').pop() || '会议纪要';
-      onDocsPick({ url: url, title: name.length > 30 ? name.slice(0, 30) + '…' : name });
-    }
-
+    // 浏览器 fallback：显示 hint + 按钮置灰（没有粘贴兜底了）
     docsEnvHint.hidden = false;
     docsPickerBtn.classList.add('disabled');
     var docsClickStub = function(e) {
       e.preventDefault();
-      // 浏览器里点按钮 → 直接弹 URL 粘贴（不再光 alert）
-      promptDocsUrl();
+      alert('请在飞书客户端内打开小程序以选择会议纪要');
     };
     docsPickerBtn.addEventListener('click', docsClickStub);
 
@@ -905,25 +885,15 @@
     var docsInputEl = document.getElementById('f-minutes');
     var docsBtn     = document.getElementById('docs-picker-btn');
     var docsCard    = document.getElementById('docs-card');
-    var docsRow     = document.getElementById('docs-picker-row');
-    var docsPasteBtn = document.getElementById('docs-paste-btn');
     // 标题单独存一份，用于草稿恢复（URL 里只有 token，不含文档名）
     var docsTitle = '{{ (values.minutes_title or '') | e }}';
-
-    // 手动粘贴兜底 —— 任何环境可用
-    if (docsPasteBtn) {
-      docsPasteBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        promptDocsUrl();
-      });
-    }
 
     function clearDocsSelection() {
       docsInputEl.value = '';
       docsTitle = '';
       docsCard.hidden = true;
       docsCard.innerHTML = '';
-      if (docsRow) docsRow.hidden = false;
+      docsBtn.hidden = false;
     }
 
     function renderDocsSelected(title) {
@@ -935,14 +905,12 @@
         '<span class="m-card-ok">✓</span>' +
         '<button type="button" class="m-card-reselect" aria-label="重选">重选</button>';
       docsCard.hidden = false;
-      if (docsRow) docsRow.hidden = true;
+      docsBtn.hidden = true;
       var reBtn = docsCard.querySelector('.m-card-reselect');
       if (reBtn) reBtn.onclick = function() {
         clearDocsSelection();
         if (typeof tt !== 'undefined' && typeof tt.docsPicker === 'function') {
           docsBtn.click();
-        } else {
-          promptDocsUrl();
         }
       };
     }
