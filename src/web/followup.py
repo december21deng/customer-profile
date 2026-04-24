@@ -27,6 +27,7 @@ from src.lark_client import (
     get_docx_title,
     get_minute_meta,
     get_user_access_token,
+    get_wiki_node_title,
     search_feishu_users,
     search_minutes,
     sign_jssdk,
@@ -408,23 +409,43 @@ def _format_meeting_date_parts(s: str | None) -> dict:
 
 
 def _lookup_doc_title(url: str | None, request, *, kind: str) -> str | None:
-    """实时拉 docx / minute 标题。kind: 'docx' | 'minute'。
+    """实时拉 docx / wiki / minute 标题。kind: 'doc' | 'minute'。
+
+    URL 类型自动识别：
+      - /docx/XXX → docx API
+      - /wiki/XXX → wiki node API（XXX 是 node_token，不是 doc_id）
+      - /docs/XXX → 老式 doc（暂不支持，返 None）
+      - /minutes/XXX → minute API
 
     走 5 分钟 TTL 内存缓存。失败/无权限/无登录 → 返回 None，模板用 fallback。
     """
     if not url:
         return None
-    if kind == "docx":
-        token = _extract_doc_id(url)
-    elif kind == "minute":
+
+    # 识别 URL 类型 + 抽 token
+    sub_kind: str
+    token: str | None
+    if kind == "minute":
+        sub_kind = "minute"
         token = _parse_minute_token(url)
     else:
-        return None
+        # doc 类：区分 docx / wiki
+        if "/wiki/" in url:
+            sub_kind = "wiki"
+            m = re.search(r"/wiki/([A-Za-z0-9]+)", url)
+            token = m.group(1) if m else None
+        elif "/docx/" in url:
+            sub_kind = "docx"
+            m = re.search(r"/docx/([A-Za-z0-9]+)", url)
+            token = m.group(1) if m else None
+        else:
+            return None
+
     if not token:
         return None
 
-    # 缓存命中
-    hit, cached = title_cache.get(kind, token)
+    # 缓存命中（cache key 含 sub_kind，避免 wiki 和 docx token 冲突）
+    hit, cached = title_cache.get(sub_kind, token)
     if hit:
         return cached
 
@@ -436,14 +457,17 @@ def _lookup_doc_title(url: str | None, request, *, kind: str) -> str | None:
     if not user_token:
         return None
 
-    if kind == "docx":
+    title: str | None
+    if sub_kind == "docx":
         title = get_docx_title(token, user_token)
-    else:
+    elif sub_kind == "wiki":
+        title = get_wiki_node_title(token, user_token)
+    else:  # minute
         meta, _err = get_minute_meta(token, user_token)
         title = (meta or {}).get("title") if meta else None
 
     # 即使 None 也缓存一下，避免 5 分钟内反复拉
-    title_cache.put(kind, token, title)
+    title_cache.put(sub_kind, token, title)
     return title
 
 

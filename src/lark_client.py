@@ -645,6 +645,34 @@ def get_docx_title(doc_id: str, user_access_token: str) -> str | None:
     return ((data.get("data") or {}).get("document") or {}).get("title")
 
 
+def get_wiki_node_title(node_token: str, user_access_token: str) -> str | None:
+    """GET /open-apis/wiki/v2/spaces/get_node?token=X → node.title
+
+    知识库节点 URL 是 /wiki/XXX，XXX 是 node_token（不是 doc_id）。
+    Scope: wiki:node:read（user_access_token）
+    """
+    if not user_access_token or not node_token:
+        return None
+    try:
+        resp = http_requests.get(
+            "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node",
+            headers={"Authorization": f"Bearer {user_access_token}"},
+            params={"token": node_token},
+            timeout=8,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("get_wiki_node_title: request failed token=%s", node_token[:12])
+        return None
+    if data.get("code", -1) != 0:
+        logger.info(
+            "get_wiki_node_title: code=%s msg=%s token=%s",
+            data.get("code"), data.get("msg"), node_token[:12],
+        )
+        return None
+    return ((data.get("data") or {}).get("node") or {}).get("title")
+
+
 def get_minute_meta(
     minute_token: str,
     user_access_token: str,
