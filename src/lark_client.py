@@ -165,12 +165,12 @@ def sign_jssdk(url: str) -> dict | None:
     ticket = _get_jsapi_ticket()
     if not ticket:
         return None
-    # 去掉 hash；query string 保留
+    # 去掉 hash；query string 保留（必须和 location.href.split('#')[0] 对齐）
     url = url.split("#", 1)[0]
-    # 飞书文档虽然说"millisecond timestamp"，但实际要 **秒级**（10 位）。
-    # 官方文档 example 值也是 10 位秒级（1414587457）。
-    # 毫秒会被前端 h5sdk.config 本地校验拒掉，报 errorCode 104 invalid parameter。
-    timestamp = int(time.time())
+    # ⚠️ 飞书 h5sdk.config 的 timestamp **必须是毫秒（13 位）**。秒会被服务端
+    # 按 ms 解读成 1970 年 → 报 333444 signature expired。
+    # 以前改毫秒时报 104 是其他参数问题，不是 timestamp 本身。
+    timestamp = int(time.time() * 1000)
     nonce_str = secrets.token_hex(8)
     string1 = (
         f"jsapi_ticket={ticket}"
@@ -178,11 +178,10 @@ def sign_jssdk(url: str) -> dict | None:
         f"&timestamp={timestamp}"
         f"&url={url}"
     )
-    # SHA1 hexdigest 默认 lowercase（飞书要求）
     signature = hashlib.sha1(string1.encode("utf-8")).hexdigest()
     return {
         "appId": LARK_APP_ID,
-        "timestamp": timestamp,   # 秒级 int，签名串里也是同一个值
+        "timestamp": timestamp,   # 13 位 int，签名串里用同一值
         "nonceStr": nonce_str,
         "signature": signature,
     }
