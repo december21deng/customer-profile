@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>跟进卡片 · Meta 行设计</title>
+<style>
+  /* ============================================================
+     Design System (Feishu 规范)
+     ============================================================ */
+  :root {
+    --blue-600: #3370FF;
+    --neutral-900: #1F2329;
+    --neutral-800: #2B2F36;
+    --neutral-700: #373C43;
+    --neutral-600: #51565D;
+    --neutral-500: #646A73;
+    --neutral-400: #8F959E;
+    --neutral-300: #BBBFC4;
+    --neutral-200: #DEE0E3;
+    --neutral-100: #F1F2F5;
+    --neutral-50:  #F7F8FA;
+    --surface: #FFFFFF;
+    --page-bg: #F7F8FA;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
+                 'Helvetica Neue', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: var(--neutral-900);
+    background: var(--neutral-50);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    padding: 40px 24px 120px;
+  }
+  .page {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+    color: var(--neutral-900);
+  }
+  .page-sub {
+    font-size: 13px;
+    color: var(--neutral-500);
+    margin: 0 0 32px;
+    max-width: 680px;
+    line-height: 1.7;
+  }
+  .page-sub code {
+    background: var(--neutral-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+
+  .variants {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+
+  .variant {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 22px;
+    border: 1px solid var(--neutral-100);
+  }
+  .v-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--neutral-400);
+    margin-bottom: 4px;
+  }
+  .v-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .v-tag {
+    font-size: 13px;
+    color: var(--neutral-600);
+    line-height: 1.6;
+    margin: 0 0 14px;
+  }
+  .v-specs {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 11.5px;
+    color: var(--neutral-500);
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: var(--neutral-50);
+    border-radius: 8px;
+    line-height: 1.6;
+  }
+  .v-specs dt {
+    font-weight: 500;
+    color: var(--neutral-400);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 10.5px;
+  }
+  .v-specs dd { margin: 0; color: var(--neutral-700); }
+  .trade {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 12px 0 0;
+  }
+  .pos, .neg {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+  .pos { background: #E8F3EC; color: #2E6B3D; }
+  .neg { background: #FDECEA; color: #8B3B20; }
+
+  /* ============================================================
+     Phone-like frame for sampling
+     ============================================================ */
+  .frame {
+    background: var(--neutral-50);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .frame-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--neutral-400);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* ============================================================
+     Card skeleton (same across all variants)
+     ============================================================ */
+  .card {
+    background: var(--surface);
+    padding: 14px 16px;
+    border-radius: 0;
+  }
+  .card + .card {
+    border-top: 1px solid var(--neutral-100);
+  }
+  .frame .card-group {
+    background: var(--surface);
+    border: 1px solid rgba(31, 35, 41, 0.06);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .title-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin: 0 0 4px -8px;
+  }
+  .title-bar {
+    flex: 0 0 2px;
+    align-self: stretch;
+    margin: 5px 0;
+    background: var(--blue-600);
+    border-radius: 1px;
+  }
+  .title {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--neutral-900);
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+  .progress {
+    font-size: 14px;
+    color: var(--neutral-500);
+    line-height: 1.55;
+    margin: 0 0 10px;
+  }
+  .people {
+    display: flex; flex-wrap: wrap;
+    gap: 4px 16px;
+    font-size: 12.5px;
+    color: var(--neutral-700);
+    line-height: 1.65;
+  }
+  .people .role-k {
+    color: var(--neutral-400);
+    font-size: 12px;
+    margin-right: 5px;
+  }
+
+  /* ============================================================
+     VARIANT A · Weighted Inline (same row, hierarchy by weight)
+     ============================================================ */
+  .va .meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.55;
+  }
+  .va .meta .cust {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--neutral-900);
+  }
+  .va .meta .sep {
+    width: 1px;
+    height: 11px;
+    background: var(--neutral-200);
+    display: inline-block;
+    transform: translateY(1px);
+  }
+  .va .meta .date {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--neutral-500);
+  }
+  .va .meta .dot {
+    color: var(--neutral-300);
+    font-size: 11px;
+  }
+  .va .meta .loc {
+    font-size: 12px;
+    color: var(--neutral-500);
+  }
+
+  /* ============================================================
+     VARIANT B · Two Rows (customer banner + meta row)
+     ============================================================ */
+  .vb .cust-row {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--neutral-700);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .vb .cust-row .cust-arrow {
+    color: var(--neutral-300);
+    font-size: 11px;
+  }
+  .vb .meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--neutral-500);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
+  }
+  .vb .meta svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
+  .vb .meta .item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ============================================================
+     VARIANT C · Split Row (customer left, meta right)
+     ============================================================ */
+  .vc .meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+  .vc .meta .cust {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--neutral-800);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vc .meta .right {
+    flex-shrink: 0;
+    font-size: 11.5px;
+    color: var(--neutral-500);
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .vc .meta .right .dot {
+    color: var(--neutral-300);
+  }
+  .vc .meta.no-cust {
+    justify-content: flex-start;
+  }
+  .vc .meta.no-cust .right {
+    font-size: 12px;
+  }
+
+  /* ============================================================
+     VARIANT D · Anchor + Tail (customer anchored, tail is gray chip-like)
+     ============================================================ */
+  .vd .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+  .vd .meta .cust {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--neutral-800);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .vd .meta .cust::after {
+    content: '';
+    width: 3px;
+    height: 3px;
+    background: var(--blue-600);
+    border-radius: 50%;
+    display: inline-block;
+    opacity: 0.6;
+    margin-left: 2px;
+  }
+  .vd .meta .tail {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--neutral-500);
+    font-variant-numeric: tabular-nums;
+  }
+  .vd .meta .tail .dot {
+    color: var(--neutral-300);
+  }
+  .vd .meta .tail svg { opacity: 0.7; flex-shrink: 0; }
+
+  /* Shared diagram */
+  .ascii {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11.5px;
+    color: var(--neutral-600);
+    background: var(--neutral-50);
+    padding: 10px 12px;
+    border-radius: 6px;
+    line-height: 1.6;
+    margin: 12px 0 4px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Meta 行布局微设计</h1>
+  <p class="page-sub">
+    只做 <code>客户名 · 日期时间 · 地点</code> 这一行。4 个方案都在飞书规范内（PingFang SC 系统字体、
+    Feishu 蓝 + 中性灰、无阴影）。每个方案展示 <strong>全局列表（有客户）</strong> 和
+    <strong>客户详情 followup tab（无客户）</strong> 两种状态。
+  </p>
+
+  <div class="variants">
+
+    <!-- ============ VARIANT A ============ -->
+    <div class="variant">
+      <div class="v-label">Variant A</div>
+      <h2 class="v-name">加权分层式</h2>
+      <p class="v-tag">保持一行，通过字重和颜色拉开层级。客户名升为 13px/500 深灰（接近标题），
+         日期地点 12px/400 中灰（接近 caption）。客户名后用一根 1×11px 竖线分隔（不是 dot），
+         明确"客户名是主体，后面是附加信息"。</p>
+
+      <div class="ascii">英科再生 | 4月24日 09:00 · 上海
+13/500    12/400       12/400
+neutral-900  neutral-500  neutral-500</div>
+
+      <div class="frame va">
+        <div class="frame-label">· 全局列表（有客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">英科再生合作洽谈跟进</div></div>
+            <p class="progress">双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通…</p>
+            <div class="meta">
+              <span class="cust">英科再生</span>
+              <span class="sep"></span>
+              <span class="date">4月24日 09:00</span>
+              <span class="dot">·</span>
+              <span class="loc">上海</span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>张心如 Janice、邓鑫</span>
+              <span><span class="role-k">客户</span>tom</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-label" style="margin-top:14px">· 客户详情页（无客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">月度例会 · 4 月进度对齐</div></div>
+            <p class="progress">本月核心指标基本达成，Q2 重点转向新客获取与老客续约率…</p>
+            <div class="meta">
+              <span class="date">4月24日 09:00</span>
+              <span class="dot">·</span>
+              <span class="loc">深圳南山</span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>邓鑫、王磊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trade">
+        <span class="pos">一行搞定</span>
+        <span class="pos">占用垂直空间最少</span>
+        <span class="neg">窄屏还是会被挤</span>
+      </div>
+    </div>
+
+    <!-- ============ VARIANT B ============ -->
+    <div class="variant">
+      <div class="v-label">Variant B</div>
+      <h2 class="v-name">两行分层式（客户独占）</h2>
+      <p class="v-tag">客户名独占一行，下方一行放日期+地点 meta（带图标）。层级最清晰——客户名是主角，
+         meta 是辅助信息。日期前放日历 icon、地点前放 pin icon，视觉上立刻识别字段类型。</p>
+
+      <div class="ascii">英科再生
+12.5/500 neutral-700
+📅 4月24日 09:00   📍 上海
+12/400 neutral-500</div>
+
+      <div class="frame vb">
+        <div class="frame-label">· 全局列表（有客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">英科再生合作洽谈跟进</div></div>
+            <p class="progress">双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通…</p>
+            <div class="cust-row">英科再生</div>
+            <div class="meta">
+              <span class="item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                4月24日 09:00
+              </span>
+              <span class="item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                上海
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>张心如 Janice、邓鑫</span>
+              <span><span class="role-k">客户</span>tom</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-label" style="margin-top:14px">· 客户详情页（无客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">月度例会 · 4 月进度对齐</div></div>
+            <p class="progress">本月核心指标基本达成，Q2 重点转向新客获取与老客续约率…</p>
+            <div class="meta">
+              <span class="item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                4月24日 09:00
+              </span>
+              <span class="item">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                深圳南山
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>邓鑫、王磊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trade">
+        <span class="pos">层级最清晰</span>
+        <span class="pos">图标识别字段快</span>
+        <span class="pos">降级优雅（无客户时少一行）</span>
+        <span class="neg">多一行高度</span>
+      </div>
+    </div>
+
+    <!-- ============ VARIANT C ============ -->
+    <div class="variant">
+      <div class="v-label">Variant C</div>
+      <h2 class="v-name">左右分栏式</h2>
+      <p class="v-tag">一行内 space-between：客户名左对齐、日期+地点右对齐且更小。
+         客户名获得"标题旁边"的视觉权重，日期地点退到右侧作为"归档信息"。
+         无客户时退化为普通左对齐一行。</p>
+
+      <div class="ascii">英科再生            4月24日 09:00 · 上海
+13/500 neutral-800       11.5/400 neutral-500</div>
+
+      <div class="frame vc">
+        <div class="frame-label">· 全局列表（有客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">英科再生合作洽谈跟进</div></div>
+            <p class="progress">双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通…</p>
+            <div class="meta">
+              <span class="cust">英科再生</span>
+              <span class="right">
+                <span>4月24日 09:00</span>
+                <span class="dot">·</span>
+                <span>上海</span>
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>张心如 Janice、邓鑫</span>
+              <span><span class="role-k">客户</span>tom</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-label" style="margin-top:14px">· 客户详情页（无客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">月度例会 · 4 月进度对齐</div></div>
+            <p class="progress">本月核心指标基本达成，Q2 重点转向新客获取与老客续约率…</p>
+            <div class="meta no-cust">
+              <span class="right">
+                <span>4月24日 09:00</span>
+                <span class="dot">·</span>
+                <span>深圳南山</span>
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>邓鑫、王磊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trade">
+        <span class="pos">一行搞定 + 层级最明确</span>
+        <span class="pos">客户名焦点突出</span>
+        <span class="neg">右侧文字较小</span>
+        <span class="neg">客户名长会压缩右侧</span>
+      </div>
+    </div>
+
+    <!-- ============ VARIANT D ============ -->
+    <div class="variant">
+      <div class="v-label">Variant D</div>
+      <h2 class="v-name">锚点 + 余韵式</h2>
+      <p class="v-tag">客户名后接一个 Feishu 蓝的小圆点（3px）做"锚点"，视觉上分隔"主体-余韵"。
+         日期地点 11.5px 中灰，时间简化成 4月24日 09:00 + pin icon 地点。
+         整体像一句话但有明显的呼吸断句。</p>
+
+      <div class="ascii">英科再生 •  4月24日 09:00 · 📍上海
+13/500 neutral-800       11.5/400 neutral-500
+         ↑
+         2px Feishu 蓝圆点</div>
+
+      <div class="frame vd">
+        <div class="frame-label">· 全局列表（有客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">英科再生合作洽谈跟进</div></div>
+            <p class="progress">双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通…</p>
+            <div class="meta">
+              <span class="cust">英科再生</span>
+              <span class="tail">
+                <span>4月24日 09:00</span>
+                <span class="dot">·</span>
+                <span>
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>上海
+                </span>
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>张心如 Janice、邓鑫</span>
+              <span><span class="role-k">客户</span>tom</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-label" style="margin-top:14px">· 客户详情页（无客户）</div>
+        <div class="card-group">
+          <div class="card">
+            <div class="title-row"><span class="title-bar"></span><div class="title">月度例会 · 4 月进度对齐</div></div>
+            <p class="progress">本月核心指标基本达成，Q2 重点转向新客获取与老客续约率…</p>
+            <div class="meta">
+              <span class="tail">
+                <span>4月24日 09:00</span>
+                <span class="dot">·</span>
+                <span>
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>深圳南山
+                </span>
+              </span>
+            </div>
+            <div class="people">
+              <span><span class="role-k">我方</span>邓鑫、王磊</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trade">
+        <span class="pos">一行 + 有细节</span>
+        <span class="pos">蓝点呼应标题竖线，整卡有呼吸</span>
+        <span class="pos">pin icon 让地点可视</span>
+        <span class="neg">蓝点可能被误读为"状态灯"</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Recommendation -->
+  <div style="margin-top:48px;padding:24px 28px;background:var(--surface);border-radius:14px;border:1px solid var(--neutral-100);">
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--neutral-400);margin-bottom:4px;">推荐</div>
+    <h3 style="margin:0 0 10px;font-size:18px;font-weight:600;">Variant B 两行分层式</h3>
+    <p style="margin:0 0 14px;font-size:13.5px;color:var(--neutral-700);line-height:1.7;">
+      客户名在全局列表里是最重要的 pivot 信息（用户想找"哪家客户的记录"），给它独立一行值得。
+      meta 行的图标让"日期"和"地点"无需读字就能识别，符合飞书 feed 类页面（消息、审批、待办）的常见模式。
+      降级优雅：客户详情 tab 里少一行自然扁平。
+    </p>
+    <div style="font-size:12px;color:var(--neutral-500);line-height:1.7;">
+      <strong style="color:var(--neutral-700);">二选：</strong>如果要极致省高度就选 <strong>Variant A 加权分层式</strong>
+      —— 用竖线 | 分隔客户和日期地点，保持一行但层级清晰。
+    </div>
+  </div>
+</div>
+</body>
+</html>

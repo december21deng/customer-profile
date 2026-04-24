@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import FastAPI, Query, Request
+from fastapi import BackgroundTasks, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -478,6 +478,76 @@ def customer_followups_partial(
         "next_cursor": _next_followup_cursor(rows) if has_next else None,
         "customer_id": customer_id,
         "show_customer": False,
+    })
+
+
+def _fetch_single_followup(record_id: str) -> dict | None:
+    """读一条 followup（含 customer / ingest_status）用于单卡渲染。"""
+    conn = connect()
+    try:
+        row = conn.execute(
+            """
+            SELECT
+              r.id, r.customer_id, r.meeting_date, r.location,
+              r.our_attendees, r.client_attendees, r.other_attendees,
+              r.background, r.photo_image_key,
+              r.meeting_title, r.progress_line,
+              c.name AS customer_name,
+              ij.status AS ingest_status
+            FROM followup_records r
+            JOIN customers c ON c.id = r.customer_id
+            LEFT JOIN ingest_jobs ij ON ij.record_id = r.id
+            WHERE r.id = ?
+            """,
+            (record_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(row) if row else None
+
+
+@app.get("/_p/followup-card/{record_id}", response_class=HTMLResponse)
+def followup_card_partial(
+    request: Request,
+    record_id: str,
+    show_customer: int = Query(0),
+):
+    """单卡 HTMX 轮询端点：processing 状态的卡片每 15s 拉自己，
+    成功/失败后返回的卡片不带 hx-trigger，轮询自然停止。"""
+    row = _fetch_single_followup(record_id)
+    if row is None:
+        # 记录被删了 → 返回空片段，polling 停
+        return HTMLResponse("")
+    decorated = _decorate_followups([row])
+    return templates.TemplateResponse("_followup_card.html", {
+        "request": request,
+        "f": decorated[0],
+        "show_customer": bool(show_customer),
+    })
+
+
+@app.post("/_p/followup-retry/{record_id}", response_class=HTMLResponse)
+def followup_retry_partial(
+    request: Request,
+    record_id: str,
+    background_tasks: BackgroundTasks,
+    show_customer: int = Query(0),
+):
+    """失败卡片的「重试」按钮端点：重置 ingest_jobs 状态并后台重跑 pipeline，
+    立刻返回 processing 状态的新卡片（带轮询）。"""
+    row = _fetch_single_followup(record_id)
+    if row is None:
+        return HTMLResponse("")
+    # 重跑 pipeline（内部会 init 新的 ingest_jobs 状态 → queued）
+    from src.ingest.pipeline import run as run_ingest_pipeline
+    background_tasks.add_task(run_ingest_pipeline, record_id)
+    # 手动把当前 ingest_status 置为 queued，这样马上返回的卡片就是 processing 态
+    row["ingest_status"] = "queued"
+    decorated = _decorate_followups([row])
+    return templates.TemplateResponse("_followup_card.html", {
+        "request": request,
+        "f": decorated[0],
+        "show_customer": bool(show_customer),
     })
 
 

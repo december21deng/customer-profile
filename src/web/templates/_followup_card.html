@@ -1,0 +1,110 @@
+{#
+  片段：单张 followup 卡片（供列表渲染 + HTMX 轮询替换）。
+  参数：
+    f             - decorated followup（带 ai_state / our_people / meeting_subtitle / date_parts）
+    show_customer - True → 全局列表，title=客户名；False → 客户详情 tab，title=会议主题
+
+  HTMX 轮询：processing 状态的卡片每 15s 拉一次自己，done/failed 后自然停止。
+#}
+<a class="followup-card
+    {%- if f.ai_state == 'processing' %} is-processing{% endif -%}
+    {%- if f.ai_state == 'failed' %} is-failed{% endif -%}"
+   href="/followup/{{ f.id }}"
+   {% if f.ai_state == 'processing' %}
+     hx-get="/_p/followup-card/{{ f.id }}?show_customer={{ 1 if show_customer else 0 }}"
+     hx-trigger="every 15s"
+     hx-swap="outerHTML"
+   {% endif %}>
+
+  <div class="fc-title-row">
+    <div class="fc-title-line">
+      <span class="fc-title-bar" aria-hidden="true"></span>
+      {% if show_customer %}
+        <div class="fc-title">{{ f.customer_name }}</div>
+      {% else %}
+        <div class="fc-title
+          {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+          {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+          {% if f.ai_state == 'processing' %}
+            <span class="fc-skel-bar"></span>
+          {% elif f.ai_state == 'failed' %}
+            AI 处理失败
+          {% else %}
+            {{ f.meeting_title or '—' }}
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    {% if show_customer %}
+      <div class="fc-subtitle
+        {%- if f.ai_state == 'processing' %} fc-ai-skel{% endif -%}
+        {%- if f.ai_state == 'failed' %} fc-ai-failed{% endif -%}">
+        {% if f.ai_state == 'processing' %}
+          <span class="fc-skel-bar"></span>
+        {% elif f.ai_state == 'failed' %}
+          AI 处理失败
+        {% else %}
+          {{ f.meeting_subtitle or '—' }}
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="fc-kv">
+    <div class="fc-kv-k">时间</div>
+    <div class="fc-kv-v">
+      {% if f.date_parts.month %}
+        {{ f.date_parts.month }}{{ f.date_parts.day }}日 {{ f.date_parts.time }}
+      {% else %}
+        {{ f.date_display }}
+      {% endif %}
+    </div>
+    {% if f.location %}
+      <div class="fc-kv-k">地点</div>
+      <div class="fc-kv-v">{{ f.location }}</div>
+    {% endif %}
+    <div class="fc-kv-k">进展</div>
+    <div class="fc-kv-v fc-kv-v-prog
+      {%- if f.ai_state == 'processing' %} fc-ai-pulse{% endif -%}">
+      {% if f.ai_state == 'processing' %}
+        处理中…
+      {% elif f.ai_state == 'failed' %}
+        <span class="fc-ai-failed-hint">处理失败</span>
+        <button type="button" class="fc-retry-btn"
+                hx-post="/_p/followup-retry/{{ f.id }}?show_customer={{ 1 if show_customer else 0 }}"
+                hx-target="closest .followup-card"
+                hx-swap="outerHTML"
+                onclick="event.preventDefault();event.stopPropagation();">
+          重试
+        </button>
+      {% else %}
+        {{ f.progress_line or '—' }}
+      {% endif %}
+    </div>
+
+    {% if f.our_people %}
+      <div class="fc-kv-k">我方</div>
+      <div class="fc-kv-v fc-kv-v-people">
+        <span class="fc-avatar-stack">
+          {% for p in f.our_people[:3] %}
+            {% if p.avatar %}
+              <span class="fc-av"><img src="{{ p.avatar }}" alt="{{ p.initial }}"
+                   onerror="this.parentNode.textContent='{{ p.initial }}'"></span>
+            {% else %}
+              <span class="fc-av">{{ p.initial }}</span>
+            {% endif %}
+          {% endfor %}
+        </span>
+        <span class="fc-kv-v-names">{{ f.our_names | join('、') }}</span>
+      </div>
+    {% endif %}
+    {% if f.client_names %}
+      <div class="fc-kv-k">客户</div>
+      <div class="fc-kv-v">{{ f.client_names | join('、') }}</div>
+    {% endif %}
+    {% if f.other_names %}
+      <div class="fc-kv-k">其他</div>
+      <div class="fc-kv-v">{{ f.other_names | join('、') }}</div>
+    {% endif %}
+  </div>
+</a>

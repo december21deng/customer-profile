@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM 跟进详情 · 设计方案对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: #1a1a1a;
+    background: #eceae6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+  .page { max-width: 1680px; margin: 0 auto; padding: 48px 32px 120px; }
+  .page-title {
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-weight: 600; font-size: 40px;
+    letter-spacing: -0.02em; margin: 0 0 8px;
+  }
+  .page-sub {
+    font-size: 14px; color: #5a5a5a; max-width: 820px;
+    line-height: 1.65; margin: 0;
+  }
+  .issues {
+    margin: 20px 0 40px; padding: 18px 22px;
+    background: #fff5e1; border: 1px solid #e6d4a8;
+    border-radius: 10px; font-size: 13px;
+  }
+  .issues strong {
+    display: block; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em;
+    color: #8b6a1f; margin-bottom: 8px;
+  }
+  .issues ul { margin: 0; padding-left: 18px; color: #5c4a1c; }
+  .issues li { margin-bottom: 3px; }
+
+  .variants {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 32px;
+    align-items: start;
+  }
+  .variant {
+    background: #fff; border-radius: 20px; padding: 22px;
+    border: 1px solid #e3dfd6;
+  }
+  .variant-head { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed #d5d1c6; }
+  .variant-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: #a09a8a; margin-bottom: 6px;
+  }
+  .variant-name {
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-weight: 600; font-size: 22px;
+    letter-spacing: -0.01em; margin: 0 0 8px;
+  }
+  .variant-tag { font-size: 13px; color: #6b6b6b; margin: 0 0 12px; line-height: 1.55; }
+  .tradeoff-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tradeoff {
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    background: #f3efe6; color: #5c5548; letter-spacing: 0.02em;
+  }
+  .tradeoff.pos { background: #e6efe3; color: #3d5b2e; }
+  .tradeoff.neg { background: #fbe9e3; color: #8b3b20; }
+
+  .viewport-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #a09a8a; text-align: center;
+    margin: 0 0 10px; letter-spacing: 0.1em;
+  }
+  .viewport {
+    width: 375px; max-width: 100%; margin: 0 auto;
+    border-radius: 14px; overflow: hidden;
+    background: var(--vp-bg, #fff);
+  }
+  .viewport.ai { margin-top: 18px; }
+  .viewport-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #a09a8a; text-align: center;
+    margin: 16px 0 6px; letter-spacing: 0.08em;
+  }
+
+  @media (max-width: 900px) {
+    .variants { grid-template-columns: 1fr; }
+    .page { padding: 24px 16px 80px; }
+    .page-title { font-size: 28px; }
+  }
+</style>
+<style id="variant-d">
+  /* ===================================================================== */
+  /* VARIANT D · 卡片流式 (Card Feed)                                        */
+  /* Aesthetic: Apple Notes · Craft · iOS-native                            */
+  /* ===================================================================== */
+  .vd { --vp-bg: #f2f1ed; padding: 0; }
+  .vd .nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px 10px; position: sticky; top: 0;
+    background: rgba(242, 241, 237, 0.92); backdrop-filter: blur(10px);
+    z-index: 2;
+  }
+  .vd .nav-back {
+    font-size: 14px; color: #2b6dd6; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 3px; font-weight: 500;
+  }
+  .vd .nav-ctx { font-size: 12px; color: #8a8a8a; font-weight: 500; }
+
+  .vd .feed { padding: 4px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+
+  .vd .card {
+    background: #fff; border-radius: 14px; padding: 16px;
+    border: 1px solid #eae8e2;
+  }
+  .vd .card-h {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11.5px; color: #8a8a8a; font-weight: 500;
+    letter-spacing: 0.04em; margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .vd .card-h svg { color: #aaa; }
+
+  /* Hero card */
+  .vd .hero {
+    background: linear-gradient(135deg, #fff 0%, #f9f7ef 100%);
+    border: 1px solid #e6dfc9;
+  }
+  .vd .hero-ctx { font-size: 12px; color: #8a7f5a; margin-bottom: 8px; font-weight: 500; }
+  .vd .hero-title {
+    font-family: 'Fraunces', 'Noto Serif SC', serif; font-weight: 600;
+    font-size: 22px; line-height: 1.35; color: #1a1a1a;
+    letter-spacing: -0.01em; margin: 0 0 10px;
+  }
+  .vd .hero-prog {
+    font-size: 14.5px; color: #4a4a4a; line-height: 1.65;
+    margin: 0 0 14px;
+  }
+  .vd .hero-meta {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding-top: 12px; border-top: 1px solid #efece0;
+  }
+  .vd .meta-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 9px; border-radius: 999px;
+    background: #f4f1e6; color: #5a5040;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .vd .meta-pill svg { opacity: 0.7; }
+  .vd .meta-pill .dot {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: #5a5040; margin: 0 3px;
+  }
+
+  /* People card */
+  .vd .people-card .people-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid #f2efe7;
+    font-size: 14px; color: #2a2a2a;
+  }
+  .vd .people-card .people-item:last-child { border-bottom: none; }
+  .vd .chip-role {
+    font-size: 11px; font-weight: 500; padding: 3px 8px;
+    border-radius: 6px; flex-shrink: 0;
+  }
+  .vd .chip-us { background: #e3ecff; color: #2044a8; }
+  .vd .chip-cust { background: #ffeedd; color: #a0570f; }
+  .vd .chip-other { background: #eeeff3; color: #5a6578; }
+  .vd .vd-av-stack { display: inline-flex; flex-shrink: 0; }
+  .vd .vd-av-stack .av {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #d4e0f6; color: #2044a8;
+    font-size: 10.5px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid #fff; margin-left: -8px;
+  }
+  .vd .vd-av-stack .av:first-child { margin-left: 0; }
+  .vd .people-card .names {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Boards card */
+  .vd .boards-card { padding: 0; overflow: hidden; }
+  .vd .boards-card .card-h { padding: 14px 16px 10px; margin-bottom: 0; }
+  .vd .boards-wrap {
+    padding: 0 14px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .vd .board-img {
+    border-radius: 10px; overflow: hidden; background: #fafaf5;
+    border: 1px solid #eae8e2;
+  }
+  .vd .board-img svg { display: block; width: 100%; height: auto; }
+  .vd .board-note {
+    font-size: 11.5px; color: #8a8a8a; padding: 6px 2px 0; text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+
+  /* Links card — two tap rows */
+  .vd .links-card { padding: 6px; }
+  .vd .link-tap {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 10px;
+    text-decoration: none; color: inherit;
+  }
+  .vd .link-tap:active { background: #f4f1e6; }
+  .vd .link-tap + .link-tap { border-top: 1px solid #f2efe7; }
+  .vd .link-tap .icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .vd .link-tap.doc .icon { background: #e3ecff; color: #2044a8; }
+  .vd .link-tap.mic .icon { background: #f0e3ff; color: #5a2da8; }
+  .vd .link-tap .body { flex: 1; min-width: 0; }
+  .vd .link-tap .t { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+  .vd .link-tap .s { font-size: 11.5px; color: #8a8a8a; margin-top: 1px; }
+  .vd .link-tap .arrow { color: #c0c0c0; }
+
+  /* Photos card */
+  .vd .photos-card { padding: 14px; }
+  .vd .photos-card .photos-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    margin-top: 10px;
+  }
+  .vd .photos-card .cell {
+    aspect-ratio: 1; border-radius: 8px; overflow: hidden;
+    background: #eae8e2;
+  }
+  .vd .photos-card .cell svg { width: 100%; height: 100%; display: block; }
+
+  /* Owner footer */
+  .vd .owner-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px 4px;
+    font-size: 12px; color: #8a8a8a;
+  }
+  .vd .owner-row .o-av {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #2b6dd6; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600;
+  }
+
+  /* AI processing state */
+  .vd .hero-title.ai-wait {
+    display: block; width: 75%; height: 16px;
+    background: linear-gradient(90deg, #eceae2 0%, #dad6c8 50%, #eceae2 100%);
+    background-size: 200% 100%; border-radius: 4px;
+    animation: vd-shimmer 1.6s ease-in-out infinite;
+    margin: 4px 0 14px;
+  }
+  .vd .hero-prog.ai-wait {
+    color: #8a8a8a; font-style: italic;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vd .hero-prog.ai-wait::before {
+    content: '';
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #2b6dd6; opacity: 0.7;
+    animation: vd-pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .vd .board-wait {
+    margin: 8px 14px 14px; padding: 30px 16px;
+    background: #faf8f0; border: 1.5px dashed #d8cf9f;
+    border-radius: 10px; text-align: center;
+    color: #8a7f5a; font-size: 13px;
+  }
+  .vd .board-wait .icon-stack {
+    display: flex; justify-content: center; gap: 2px;
+    margin-bottom: 10px;
+  }
+  .vd .board-wait .icon-stack span {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; background: #c0a855;
+    animation: vd-dots 1.2s ease-in-out infinite;
+  }
+  .vd .board-wait .icon-stack span:nth-child(2) { animation-delay: 0.2s; }
+  .vd .board-wait .icon-stack span:nth-child(3) { animation-delay: 0.4s; }
+  .vd .board-wait .hint {
+    display: block; margin-top: 5px;
+    font-size: 11.5px; color: #a0906b;
+  }
+  @keyframes vd-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes vd-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.7); }
+    50%      { opacity: 1;   transform: scale(1);   }
+  }
+  @keyframes vd-dots {
+    0%, 60%, 100% { opacity: 0.3; transform: scale(0.7); }
+    30% { opacity: 1; transform: scale(1); }
+  }
+</style>
+<style id="variant-c">
+  /* ===================================================================== */
+  /* VARIANT C · 简报备忘式 (Briefing Memo)                                  */
+  /* Aesthetic: McKinsey brief · 官方备忘录                                  */
+  /* ===================================================================== */
+  .vc { --vp-bg: #f8f5ee; padding: 0; }
+  .vc .memo-head {
+    padding: 16px 20px 12px; background: #1f2a3a; color: #e8e4d8;
+    border-bottom: 3px double #c9b99a;
+  }
+  .vc .memo-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.3em; text-transform: uppercase; color: #c9b99a;
+    margin-bottom: 8px;
+  }
+  .vc .memo-back {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: #8a9aad; text-decoration: none; margin-bottom: 10px;
+    display: inline-block;
+  }
+  .vc .memo-re {
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-weight: 600; font-size: 20px; line-height: 1.35;
+    letter-spacing: -0.01em; margin: 4px 0;
+  }
+  .vc .memo-fields {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    line-height: 1.9; letter-spacing: 0.04em;
+    color: #bcc3d0; margin-top: 8px;
+  }
+  .vc .memo-fields .k { color: #8a9aad; display: inline-block; width: 50px; }
+  .vc .memo-fields .v { color: #e8e4d8; }
+
+  .vc .memo-body { padding: 22px 20px 40px; }
+  .vc .abstract {
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-style: italic; font-size: 15px; line-height: 1.75;
+    color: #2e2820; padding: 16px 18px;
+    background: #f3ede0; border: 1px solid #d8cba8;
+    border-left: 3px solid #5a6e3a;
+    margin-bottom: 28px;
+  }
+  .vc .abstract-label {
+    font-family: 'JetBrains Mono', monospace; font-style: normal;
+    font-size: 10px; letter-spacing: 0.2em; color: #5a6e3a;
+    display: block; margin-bottom: 6px;
+  }
+
+  .vc .section { margin-bottom: 28px; }
+  .vc .sec-h {
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-weight: 600; font-size: 14px;
+    margin: 0 0 10px; padding-bottom: 6px;
+    border-bottom: 1px solid #3a3428;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .vc .sec-h .sec-n {
+    font-family: 'JetBrains Mono', monospace; font-weight: 500;
+    font-size: 11px; color: #8a7a5a; letter-spacing: 0.08em;
+  }
+  .vc .sec-h .sec-name { flex: 1; }
+
+  .vc .attend-tbl {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+  }
+  .vc .attend-tbl th {
+    text-align: left; padding: 8px 10px 6px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 500;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #8a7a5a; border-bottom: 1px solid #d8cba8;
+    width: 80px;
+  }
+  .vc .attend-tbl td {
+    padding: 10px; vertical-align: top;
+    border-bottom: 1px solid #e6dfc9; color: #2e2820; line-height: 1.6;
+  }
+  .vc .attend-tbl tr:last-child td { border-bottom: none; }
+
+  .vc .exhibit {
+    margin-bottom: 14px;
+    border: 1px solid #c9b99a;
+    background: #fdfbf4;
+  }
+  .vc .exhibit-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.2em; color: #5a6e3a;
+    padding: 8px 12px; background: #e8e4d2;
+    border-bottom: 1px solid #c9b99a;
+  }
+  .vc .exhibit .img { padding: 8px; }
+  .vc .exhibit svg { display: block; width: 100%; height: auto; }
+  .vc .exhibit-cap {
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-style: italic; font-size: 12px; color: #4a4034;
+    padding: 4px 12px 10px;
+  }
+
+  .vc .refs {
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-size: 13.5px; line-height: 1.9;
+  }
+  .vc .refs-item {
+    display: flex; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px dotted #c9b99a;
+    color: #2e2820; text-decoration: none;
+  }
+  .vc .refs-item:last-child { border-bottom: none; }
+  .vc .refs-item .ref-name { }
+  .vc .refs-item .ref-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #8a7a5a; letter-spacing: 0.08em;
+  }
+
+  .vc .photos {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  }
+  .vc .photo-cell {
+    aspect-ratio: 1; border: 1px solid #c9b99a; background: #e8e4d2;
+  }
+  .vc .photo-cell svg { width: 100%; height: 100%; display: block; }
+
+  .vc .sign-off {
+    margin-top: 32px; padding-top: 14px;
+    border-top: 1px solid #c9b99a;
+    font-family: 'Source Serif 4', 'Noto Serif SC', serif;
+    font-size: 12px; color: #5a5040;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vc .sign-av {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #5a6e3a; color: #f3ede0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 12px;
+  }
+  .vc .sign-meta .sig-name { font-weight: 600; color: #2e2820; }
+  .vc .sign-meta .sig-role {
+    font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+    color: #8a7a5a; letter-spacing: 0.1em;
+  }
+
+  /* AI processing for Variant C */
+  .vc .memo-re.ai-wait {
+    color: #8a7a5a; font-style: italic; font-weight: 400;
+  }
+  .vc .abstract.ai-wait {
+    color: #6b5e3e; font-style: italic;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vc .abstract.ai-wait::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: #5a6e3a; opacity: 0.7;
+    animation: vc-pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .vc .exhibit-wait {
+    padding: 24px 14px;
+    border: 1px dashed #c9b99a; background: #fdfbf4;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    color: #8a7a5a; letter-spacing: 0.15em;
+  }
+  .vc .exhibit-wait .bracket { color: #5a6e3a; font-weight: 500; }
+  .vc .exhibit-wait .meta {
+    display: block; margin-top: 6px; letter-spacing: 0.04em;
+    font-family: 'Source Serif 4', serif; font-style: italic;
+    color: #6b5e3e; font-size: 12px;
+  }
+  @keyframes vc-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.7); }
+    50%      { opacity: 1;   transform: scale(1);   }
+  }
+</style>
+<style id="variant-b">
+  /* ===================================================================== */
+  /* VARIANT B · 飞书原生文档式 (Native Doc)                                 */
+  /* Aesthetic: 飞书 Docs · Notion · 文档阅读页                              */
+  /* ===================================================================== */
+  .vb { --vp-bg: #fff; padding: 0; }
+  .vb .topbar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #eceef2;
+  }
+  .vb .back-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 13px; color: #3370ff; text-decoration: none;
+  }
+  .vb .breadcrumb {
+    font-size: 12px; color: #8a96a8;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .vb .breadcrumb .sep { color: #ccd3e0; padding: 0 4px; }
+
+  .vb .doc { padding: 20px 20px 40px; }
+  .vb .doc-title {
+    font-size: 24px; font-weight: 600; line-height: 1.35;
+    color: #14182a; letter-spacing: -0.01em;
+    margin: 12px 0 10px;
+  }
+  .vb .doc-sub {
+    font-size: 15px; color: #3a4256; line-height: 1.65;
+    margin: 0 0 16px;
+    padding-left: 12px; border-left: 3px solid #3370ff;
+  }
+
+  .vb .meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px 16px; padding: 14px 0;
+    border-top: 1px solid #eceef2; border-bottom: 1px solid #eceef2;
+    margin-bottom: 20px;
+  }
+  .vb .meta-item { display: flex; flex-direction: column; gap: 2px; }
+  .vb .meta-k {
+    font-size: 11px; color: #8a96a8; letter-spacing: 0.02em;
+  }
+  .vb .meta-v {
+    font-size: 13.5px; color: #14182a; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .vb .meta-owner { display: inline-flex; align-items: center; gap: 6px; }
+  .vb .meta-owner .av {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #3370ff; color: #fff; font-size: 10px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  .vb .block { margin-bottom: 28px; }
+  .vb .block-h {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; color: #14182a;
+    margin-bottom: 12px;
+  }
+  .vb .block-h svg { color: #8a96a8; }
+
+  .vb .people-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; font-size: 13.5px;
+  }
+  .vb .people-row + .people-row { border-top: 1px dashed #eceef2; }
+  .vb .chip {
+    font-size: 11px; font-weight: 500; padding: 3px 8px;
+    border-radius: 4px; flex-shrink: 0;
+  }
+  .vb .chip-us { background: #e3ecff; color: #2044a8; }
+  .vb .chip-cust { background: #ffeedd; color: #a0570f; }
+  .vb .chip-other { background: #eeeff3; color: #5a6578; }
+  .vb .av-stack { display: inline-flex; flex-shrink: 0; }
+  .vb .av-stack .av {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #d4e0f6; color: #2044a8;
+    font-size: 10px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid #fff; margin-left: -6px;
+  }
+  .vb .av-stack .av:first-child { margin-left: 0; }
+  .vb .p-names {
+    color: #14182a; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .vb .board-wrap {
+    background: #fafbfc; border: 1px solid #eceef2;
+    border-radius: 8px; padding: 8px; margin-bottom: 10px;
+  }
+  .vb .board-wrap svg { display: block; width: 100%; height: auto; border-radius: 4px; }
+  .vb .board-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: #5a6578; margin-top: 6px; padding: 0 4px;
+  }
+  .vb .board-tag svg { color: #8a96a8; }
+
+  .vb .link-cards {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .vb .link-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #fafbfc;
+    border: 1px solid #eceef2; border-radius: 8px;
+    text-decoration: none; color: inherit;
+  }
+  .vb .link-card .li-icon {
+    width: 36px; height: 36px; border-radius: 6px;
+    background: #e3ecff; color: #2044a8;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .vb .link-card.transcript .li-icon { background: #f0e3ff; color: #5a2da8; }
+  .vb .link-card .li-body { flex: 1; min-width: 0; }
+  .vb .link-card .li-title {
+    font-size: 14px; font-weight: 500; color: #14182a; margin-bottom: 2px;
+  }
+  .vb .link-card .li-sub {
+    font-size: 11.5px; color: #8a96a8;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .vb .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .vb .photo-cell {
+    aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+    background: #eceef2;
+  }
+  .vb .photo-cell svg { width: 100%; height: 100%; display: block; }
+
+  /* AI processing state for Variant B */
+  .vb .doc-title.ai-wait {
+    color: transparent; position: relative; width: 70%; height: 18px;
+    background: linear-gradient(90deg, #eef1f6 0%, #dfe4ed 50%, #eef1f6 100%);
+    background-size: 200% 100%; border-radius: 4px;
+    animation: vb-shimmer 1.6s ease-in-out infinite;
+    margin: 14px 0 12px;
+  }
+  .vb .doc-sub.ai-wait {
+    color: #8a96a8; font-style: italic; border-left-color: #ccd3e0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vb .doc-sub.ai-wait::before {
+    content: '';
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #3370ff; opacity: 0.7;
+    animation: vb-pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .vb .board-wait {
+    padding: 28px 16px; background: #fafbfc;
+    border: 1px dashed #d6dae2; border-radius: 8px;
+    text-align: center; color: #8a96a8;
+    font-size: 12.5px;
+  }
+  .vb .board-wait .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid #d6dae2; border-top-color: #3370ff;
+    border-radius: 50%; animation: vb-spin 1s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  .vb .board-wait .hint {
+    display: block; margin-top: 6px; font-size: 11px; color: #aab3c2;
+  }
+  @keyframes vb-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes vb-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.7); }
+    50%      { opacity: 1;   transform: scale(1);   }
+  }
+  @keyframes vb-spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+<style id="variant-a">
+  /* ===================================================================== */
+  /* VARIANT A · 编辑专栏式 (Editorial Longform)                              */
+  /* Aesthetic: Bloomberg Businessweek · NYT Magazine                       */
+  /* ===================================================================== */
+  .va { --vp-bg: #f5f1e8; padding: 20px 18px 28px; }
+  .va .back {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #8a7a5a; text-decoration: none; display: inline-flex;
+    align-items: center; gap: 4px; margin-bottom: 18px;
+  }
+  .va .kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: #a0522d;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .va .kicker .dot { width: 4px; height: 4px; background: #a0522d; border-radius: 50%; }
+  .va .customer-ref {
+    font-family: 'Noto Serif SC', serif; font-size: 12.5px;
+    color: #6b5e3e; margin-bottom: 6px; font-style: italic;
+  }
+  .va .title {
+    font-family: 'Noto Serif SC', serif; font-weight: 700;
+    font-size: 26px; line-height: 1.3; color: #1a1a1a;
+    letter-spacing: -0.01em; margin: 0 0 14px;
+  }
+  .va .deck {
+    font-family: 'Noto Serif SC', serif; font-weight: 400;
+    font-style: italic; font-size: 16px; line-height: 1.7;
+    color: #3a3428; margin: 0 0 20px; border-left: 2px solid #a0522d;
+    padding-left: 14px;
+  }
+  .va .byline {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: #6b5e3e; letter-spacing: 0.04em;
+    padding: 10px 0; border-top: 1px solid #d8cba8;
+    border-bottom: 1px solid #d8cba8; margin-bottom: 22px;
+    line-height: 1.7;
+  }
+  .va .byline .sep { color: #c9b99a; padding: 0 6px; }
+  .va .byline .by { font-style: italic; }
+  .va .sec {
+    margin-bottom: 24px;
+  }
+  .va .sec-rule {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 12px;
+  }
+  .va .sec-rule .num {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: #a0522d;
+  }
+  .va .sec-rule .name {
+    font-family: 'Noto Serif SC', serif; font-weight: 600;
+    font-size: 13px; letter-spacing: 0.08em; color: #1a1a1a;
+    text-transform: none;
+  }
+  .va .sec-rule::after {
+    content: ''; flex: 1; height: 1px; background: #d8cba8; margin-top: 2px;
+  }
+  .va .participants { font-size: 13.5px; color: #2a2a2a; line-height: 1.9; }
+  .va .p-role {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: #8a7a5a; margin-right: 10px;
+  }
+  .va .p-names {
+    font-family: 'Noto Serif SC', serif;
+  }
+  .va .p-avs { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+  .va .p-av {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #d8c9a8; color: #6b5a2e;
+    font-size: 9.5px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 2px solid #f5f1e8; margin-left: -5px;
+  }
+  .va .p-av:first-child { margin-left: 0; }
+
+  .va .figure { margin: 14px 0 4px; }
+  .va .figure .img-wrap {
+    background: #fdfbf5; border: 1px solid #d8cba8;
+    border-radius: 2px; overflow: hidden; margin-bottom: 6px;
+  }
+  .va .figure .img-wrap svg { display: block; width: 100%; height: auto; }
+  .va .figure figcaption {
+    font-family: 'Noto Serif SC', serif; font-style: italic;
+    font-size: 12px; color: #5a5040; line-height: 1.6;
+  }
+  .va .figure figcaption .fig-n {
+    font-family: 'JetBrains Mono', monospace; font-style: normal;
+    color: #a0522d; letter-spacing: 0.08em; margin-right: 6px;
+    font-size: 10px;
+  }
+  .va .links {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .va .link-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; background: #fdfbf5;
+    border: 1px solid #d8cba8; text-decoration: none; color: inherit;
+    border-radius: 2px;
+  }
+  .va .link-item .li-name {
+    font-family: 'Noto Serif SC', serif; font-weight: 500; font-size: 14px;
+  }
+  .va .link-item .li-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: #8a7a5a; letter-spacing: 0.08em; margin-top: 2px;
+    display: block;
+  }
+  .va .link-item .arrow {
+    font-family: 'JetBrains Mono', monospace; color: #a0522d;
+    font-size: 14px;
+  }
+  .va .photos {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  }
+  .va .photo-cell {
+    aspect-ratio: 1; background: #d8cba8;
+    border: 1px solid #c9b99a;
+  }
+  .va .photo-cell svg { width: 100%; height: 100%; display: block; }
+  .va .footer {
+    margin-top: 32px; padding-top: 14px;
+    border-top: 1px solid #d8cba8;
+    font-family: 'Noto Serif SC', serif; font-style: italic;
+    font-size: 12px; color: #6b5e3e;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .va .footer .signature-av {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #a0522d; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'Noto Serif SC', serif; font-size: 11px; font-weight: 600;
+  }
+
+  /* AI processing state for Variant A */
+  .va.ai-state .title {
+    color: #a09a8a; font-weight: 400; font-style: italic;
+  }
+  .va.ai-state .title::after {
+    content: ' ——';
+    color: #c9b99a;
+  }
+  .va.ai-state .deck {
+    color: #a09a8a; font-style: italic;
+    border-left-color: #d8cba8;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .va.ai-state .deck::before {
+    content: '';
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #a0522d; opacity: 0.6;
+    animation: va-pulse 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes va-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.7); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">CRM 跟进详情 · 设计方案对比</h1>
+  <p class="page-sub">
+    4 个差异化气质方向。每个方案都完整渲染：标题与进展、参会人员、会议画板、完整纪要入口、现场照片、记录人。
+    数据完全相同，差异在气质定位与信息呈现方式上。
+  </p>
+
+  <div class="issues">
+    <strong>当前版本的问题</strong>
+    <ul>
+      <li>客户名当 h1 —— 详情页主角应是"这场会议"，客户是 context</li>
+      <li>"INTCO / 客户方 / 其他"跟列表卡片的"我方 / 客户 / 其他"不一致</li>
+      <li>列表卡片有"一句话进展"，详情页反而缺席 —— 最该突出的 AI 输出反而没出现</li>
+      <li>5 行 kv 表（主题/参会/时间/地点/记录人）像填表不像阅读</li>
+      <li>"记录人"与会议核心字段同视觉权重，但它只是 metadata</li>
+      <li>命名反直觉："会议总结" 显示的是白板图，"会议详情" 只是俩外链按钮</li>
+      <li>AI 处理中只有一句 "抽取中或权限未就位"，不优雅</li>
+    </ul>
+  </div>
+
+  <div class="variants">
+
+    <!-- ============================================================= -->
+    <!-- VARIANT A · Editorial Longform                                   -->
+    <!-- ============================================================= -->
+    <div class="variant">
+      <div class="variant-head">
+        <div class="variant-label">Variant A</div>
+        <h2 class="variant-name">编辑专栏式 · Editorial Longform</h2>
+        <p class="variant-tag">
+          像一篇 Bloomberg Businessweek 的长篇报道。Noto Serif SC 做标题，
+          JetBrains Mono 做 kicker / 署名行，italic serif deck 高亮一句话进展。
+          每张画板当作"图 1/图 2"编号附图。
+        </p>
+        <div class="tradeoff-row">
+          <span class="tradeoff pos">阅读体验最好</span>
+          <span class="tradeoff pos">进展 deck 最突出</span>
+          <span class="tradeoff pos">画板被真正"讲述"</span>
+          <span class="tradeoff neg">衬线字体需加载</span>
+          <span class="tradeoff neg">跟飞书扁平风气质略跳</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5 · DONE STATE</div>
+      <div class="viewport va">
+        <a class="back" href="#">← BACK</a>
+        <div class="kicker">
+          <span class="dot"></span>
+          <span>DISPATCH · 2026.04.24</span>
+          <span>上海</span>
+        </div>
+        <div class="customer-ref">客户 · 英科再生</div>
+        <h1 class="title">英科再生合作洽谈跟进</h1>
+        <p class="deck">
+          双方确认合作品类范围，4&nbsp;月赴美考察后由徐老师与英科买手进一步沟通，
+          预计&nbsp;5&nbsp;月前确定可行合作项目。
+        </p>
+        <div class="byline">
+          4月24日 · 周四 · 09:00<span class="sep">|</span>上海<span class="sep">|</span><span class="by">记录 · 邓鑫</span>
+        </div>
+
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">01</span>
+            <span class="name">出席</span>
+          </div>
+          <div class="participants">
+            <div>
+              <span class="p-role">Us</span>
+              <span class="p-avs">
+                <span class="p-av">张</span>
+                <span class="p-av">邓</span>
+              </span>
+              <span class="p-names">张心如 Janice，邓鑫</span>
+            </div>
+            <div>
+              <span class="p-role">Client</span>
+              <span class="p-names">tom，王总</span>
+            </div>
+            <div>
+              <span class="p-role">Other</span>
+              <span class="p-names">jim（律师）</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">02</span>
+            <span class="name">会议画板</span>
+          </div>
+          <figure class="figure">
+            <div class="img-wrap">
+              <svg viewBox="0 0 340 200" xmlns="http://www.w3.org/2000/svg">
+                <rect width="340" height="200" fill="#fdfbf5"/>
+                <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#3a3428">合作品类范围</text>
+                <rect x="16" y="42" width="94" height="42" fill="none" stroke="#2a6b54" stroke-width="1.5"/>
+                <text x="28" y="67" font-size="10" fill="#2a6b54">消毒湿巾</text>
+                <rect x="123" y="42" width="94" height="42" fill="none" stroke="#2a6b54" stroke-width="1.5"/>
+                <text x="142" y="67" font-size="10" fill="#2a6b54">医用口罩</text>
+                <rect x="230" y="42" width="94" height="42" fill="none" stroke="#2a6b54" stroke-width="1.5"/>
+                <text x="244" y="67" font-size="10" fill="#2a6b54">手术衣</text>
+                <line x1="170" y1="90" x2="170" y2="115" stroke="#a0522d" stroke-width="1.5"/>
+                <polygon points="166,110 170,118 174,110" fill="#a0522d"/>
+                <rect x="60" y="120" width="220" height="60" fill="#fef4e0" stroke="#a0522d" stroke-width="1.5"/>
+                <text x="80" y="145" font-size="11" fill="#7a4018" font-weight="500">4月赴美考察 → 与英科买手对齐</text>
+                <text x="80" y="165" font-size="10" fill="#8a6540">5月前确定首批试点 SKU</text>
+              </svg>
+            </div>
+            <figcaption><span class="fig-n">图 1</span>合作品类与推进节奏白板记录</figcaption>
+          </figure>
+          <figure class="figure">
+            <div class="img-wrap">
+              <svg viewBox="0 0 340 140" xmlns="http://www.w3.org/2000/svg">
+                <rect width="340" height="140" fill="#fdfbf5"/>
+                <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#3a3428">报价模型草图</text>
+                <line x1="30" y1="120" x2="310" y2="120" stroke="#2a6b54" stroke-width="1"/>
+                <line x1="30" y1="40" x2="30" y2="120" stroke="#2a6b54" stroke-width="1"/>
+                <polyline points="40,100 90,85 140,70 200,60 260,55 300,50" fill="none" stroke="#a0522d" stroke-width="2"/>
+                <circle cx="90" cy="85" r="3" fill="#a0522d"/>
+                <circle cx="200" cy="60" r="3" fill="#a0522d"/>
+                <text x="40" y="135" font-size="9" fill="#6b5e3e">Q1</text>
+                <text x="260" y="135" font-size="9" fill="#6b5e3e">Q4</text>
+              </svg>
+            </div>
+            <figcaption><span class="fig-n">图 2</span>阶梯报价模型（徐老师白板推演）</figcaption>
+          </figure>
+        </div>
+
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">03</span>
+            <span class="name">延伸阅读</span>
+          </div>
+          <div class="links">
+            <a class="link-item" href="#">
+              <div>
+                <div class="li-name">会议原文</div>
+                <span class="li-hint">FEISHU DOCX</span>
+              </div>
+              <span class="arrow">→</span>
+            </a>
+            <a class="link-item" href="#">
+              <div>
+                <div class="li-name">会议录音</div>
+                <span class="li-hint">FEISHU MINUTES</span>
+              </div>
+              <span class="arrow">→</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">04</span>
+            <span class="name">现场留影</span>
+          </div>
+          <div class="photos">
+            <div class="photo-cell">
+              <svg viewBox="0 0 80 80"><defs><linearGradient id="vap1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9b99a"/><stop offset="1" stop-color="#8a7a5a"/></linearGradient></defs><rect width="80" height="80" fill="url(#vap1)"/><circle cx="40" cy="32" r="10" fill="#fdfbf5" opacity="0.4"/><path d="M0,60 Q40,40 80,62 L80,80 L0,80 Z" fill="#6b5e3e" opacity="0.4"/></svg>
+            </div>
+            <div class="photo-cell">
+              <svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#a0522d"/><rect x="10" y="20" width="60" height="40" fill="#fdfbf5" opacity="0.3"/></svg>
+            </div>
+            <div class="photo-cell">
+              <svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#5a6b54"/><circle cx="30" cy="30" r="12" fill="#fdfbf5" opacity="0.5"/><circle cx="55" cy="50" r="8" fill="#fdfbf5" opacity="0.4"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <span class="signature-av">邓</span>
+          <span>记录于 2026 年 4 月 24 日 · 邓鑫</span>
+        </div>
+      </div>
+
+      <div class="viewport-tag">AI PROCESSING STATE</div>
+      <div class="viewport va ai-state">
+        <a class="back" href="#">← BACK</a>
+        <div class="kicker">
+          <span class="dot"></span>
+          <span>DISPATCH · 2026.04.23</span>
+        </div>
+        <div class="customer-ref">客户 · 英科再生</div>
+        <h1 class="title">纪要提炼中</h1>
+        <p class="deck">AI 正在通读会议纪要，约 30 秒后标题与进展将就绪</p>
+        <div class="byline">
+          4月23日 · 周三 · 15:30<span class="sep">|</span><span class="by">记录 · 邓鑫</span>
+        </div>
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">01</span>
+            <span class="name">出席</span>
+          </div>
+          <div class="participants">
+            <div><span class="p-role">Us</span><span class="p-names">邓鑫</span></div>
+            <div><span class="p-role">Client</span><span class="p-names">李总</span></div>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-rule">
+            <span class="num">02</span>
+            <span class="name">会议画板</span>
+          </div>
+          <figure class="figure">
+            <div class="img-wrap" style="padding: 40px 0; text-align: center; color: #a09a8a; font-family: 'Noto Serif SC', serif; font-style: italic; font-size: 12px;">
+              —— 画板抽取中 ——
+            </div>
+            <figcaption><span class="fig-n">图 ?</span>AI 正在从纪要文档中提取白板图像</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- VARIANT B · Native Doc                                           -->
+    <!-- ============================================================= -->
+    <div class="variant">
+      <div class="variant-head">
+        <div class="variant-label">Variant B</div>
+        <h2 class="variant-name">飞书原生文档式 · Native Doc</h2>
+        <p class="variant-tag">
+          像一页飞书文档：粘性顶栏带面包屑、文档正文结构（标题 + 副标题 + meta 表 + 分块）。
+          画板当作文档内嵌图像块，原文/妙记做成富链接卡片。飞书扁平风气质契合度最高。
+        </p>
+        <div class="tradeoff-row">
+          <span class="tradeoff pos">跟飞书气质最契合</span>
+          <span class="tradeoff pos">用户学习成本为零</span>
+          <span class="tradeoff pos">信息密度均衡</span>
+          <span class="tradeoff neg">个性较弱（像是"另一份飞书文档"）</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5 · DONE STATE</div>
+      <div class="viewport vb">
+        <div class="topbar">
+          <a class="back-btn" href="#">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            返回
+          </a>
+          <div class="breadcrumb">客户<span class="sep">/</span>英科再生<span class="sep">/</span>跟进</div>
+        </div>
+        <div class="doc">
+          <h1 class="doc-title">英科再生合作洽谈跟进</h1>
+          <p class="doc-sub">
+            双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通，预计 5 月前确定可行合作项目。
+          </p>
+
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-k">时间</span>
+              <span class="meta-v">4月24日 周四 09:00</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-k">地点</span>
+              <span class="meta-v">上海</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-k">客户</span>
+              <span class="meta-v">英科再生</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-k">记录人</span>
+              <span class="meta-v meta-owner">
+                <span class="av">邓</span>邓鑫
+              </span>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              参会人员
+            </div>
+            <div class="people-row">
+              <span class="chip chip-us">我方</span>
+              <span class="av-stack"><span class="av">张</span><span class="av">邓</span></span>
+              <span class="p-names">张心如 Janice，邓鑫</span>
+            </div>
+            <div class="people-row">
+              <span class="chip chip-cust">客户</span>
+              <span class="p-names">tom，王总</span>
+            </div>
+            <div class="people-row">
+              <span class="chip chip-other">其他</span>
+              <span class="p-names">jim</span>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18M9 3v18"/>
+              </svg>
+              会议画板
+            </div>
+            <div class="board-wrap">
+              <svg viewBox="0 0 340 200" xmlns="http://www.w3.org/2000/svg">
+                <rect width="340" height="200" fill="#fff"/>
+                <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">合作品类范围</text>
+                <rect x="16" y="42" width="94" height="42" fill="#f0f7ff" stroke="#3370ff" stroke-width="1.2"/>
+                <text x="30" y="67" font-size="10" fill="#2044a8">消毒湿巾</text>
+                <rect x="123" y="42" width="94" height="42" fill="#f0f7ff" stroke="#3370ff" stroke-width="1.2"/>
+                <text x="144" y="67" font-size="10" fill="#2044a8">医用口罩</text>
+                <rect x="230" y="42" width="94" height="42" fill="#f0f7ff" stroke="#3370ff" stroke-width="1.2"/>
+                <text x="245" y="67" font-size="10" fill="#2044a8">手术衣</text>
+                <line x1="170" y1="88" x2="170" y2="116" stroke="#999" stroke-width="1"/>
+                <polygon points="166,112 170,120 174,112" fill="#999"/>
+                <rect x="60" y="122" width="220" height="56" fill="#fff4e0" stroke="#e8a04a" stroke-width="1.2"/>
+                <text x="80" y="145" font-size="11" fill="#7a4018" font-weight="500">4月赴美考察 → 对齐英科买手</text>
+                <text x="80" y="163" font-size="10" fill="#8a6540">5月前确定首批试点 SKU</text>
+              </svg>
+              <div class="board-tag">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                由 AI 从会议纪要中提取
+              </div>
+            </div>
+            <div class="board-wrap">
+              <svg viewBox="0 0 340 140" xmlns="http://www.w3.org/2000/svg">
+                <rect width="340" height="140" fill="#fff"/>
+                <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">阶梯报价模型</text>
+                <line x1="30" y1="120" x2="310" y2="120" stroke="#999" stroke-width="1"/>
+                <line x1="30" y1="40" x2="30" y2="120" stroke="#999" stroke-width="1"/>
+                <polyline points="40,100 90,85 140,70 200,60 260,55 300,50" fill="none" stroke="#3370ff" stroke-width="2"/>
+                <circle cx="90" cy="85" r="3" fill="#3370ff"/>
+                <circle cx="200" cy="60" r="3" fill="#3370ff"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              完整纪要
+            </div>
+            <div class="link-cards">
+              <a class="link-card" href="#">
+                <span class="li-icon">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </span>
+                <div class="li-body">
+                  <div class="li-title">会议原文</div>
+                  <div class="li-sub">飞书文档 · 完整纪要文字</div>
+                </div>
+              </a>
+              <a class="link-card transcript" href="#">
+                <span class="li-icon">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                </span>
+                <div class="li-body">
+                  <div class="li-title">会议录音</div>
+                  <div class="li-sub">飞书妙记 · 带转写</div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              相关照片
+            </div>
+            <div class="photos">
+              <div class="photo-cell">
+                <svg viewBox="0 0 80 80"><defs><linearGradient id="vbp1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9d3e6"/><stop offset="1" stop-color="#5a6e8a"/></linearGradient></defs><rect width="80" height="80" fill="url(#vbp1)"/><circle cx="40" cy="32" r="10" fill="#fff" opacity="0.5"/></svg>
+              </div>
+              <div class="photo-cell">
+                <svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#3370ff"/><rect x="10" y="20" width="60" height="40" fill="#fff" opacity="0.3"/></svg>
+              </div>
+              <div class="photo-cell">
+                <svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#5a8a6e"/><circle cx="30" cy="30" r="12" fill="#fff" opacity="0.5"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="viewport-tag">AI PROCESSING STATE</div>
+      <div class="viewport vb">
+        <div class="topbar">
+          <a class="back-btn" href="#">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            返回
+          </a>
+          <div class="breadcrumb">客户<span class="sep">/</span>英科再生<span class="sep">/</span>跟进</div>
+        </div>
+        <div class="doc">
+          <div class="doc-title ai-wait"></div>
+          <p class="doc-sub ai-wait">AI 正在整理这场会议，约 30 秒后就绪</p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-k">时间</span>
+              <span class="meta-v">4月23日 周三 15:30</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-k">记录人</span>
+              <span class="meta-v meta-owner"><span class="av">邓</span>邓鑫</span>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+              会议画板
+            </div>
+            <div class="board-wait">
+              <span class="spinner"></span>
+              正在从会议纪要中提取画板
+              <span class="hint">通常 30–90 秒，也可先点击下方「会议原文」查看</span>
+            </div>
+          </div>
+          <div class="block">
+            <div class="block-h">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              完整纪要
+            </div>
+            <div class="link-cards">
+              <a class="link-card" href="#">
+                <span class="li-icon">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </span>
+                <div class="li-body">
+                  <div class="li-title">会议原文</div>
+                  <div class="li-sub">飞书文档 · 完整纪要文字</div>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- VARIANT C · Briefing Memo                                       -->
+    <!-- ============================================================= -->
+    <div class="variant">
+      <div class="variant-head">
+        <div class="variant-label">Variant C</div>
+        <h2 class="variant-name">简报备忘式 · Briefing Memo</h2>
+        <p class="variant-tag">
+          像一份正式备忘录：深色页眉 MEMORANDUM 徽标 + RE/DATE/FROM 字段，
+          Source Serif 正文，带编号的 section（01 / 02 / 03），画板标为 EXHIBIT A / B。
+          最正式、最"有重量感"。适合给上级汇报或归档。
+        </p>
+        <div class="tradeoff-row">
+          <span class="tradeoff pos">权威感最强</span>
+          <span class="tradeoff pos">结构化最清晰</span>
+          <span class="tradeoff pos">适合存档 / 外发</span>
+          <span class="tradeoff neg">正式到有点"硬"，日常用略重</span>
+          <span class="tradeoff neg">跟飞书扁平风最冲</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5 · DONE STATE</div>
+      <div class="viewport vc">
+        <div class="memo-head">
+          <a class="memo-back" href="#">← BACK</a>
+          <div class="memo-badge">· MEMORANDUM ·</div>
+          <div class="memo-re">英科再生合作洽谈跟进</div>
+          <div class="memo-fields">
+            <div><span class="k">RE</span><span class="v">英科再生 · 合作洽谈</span></div>
+            <div><span class="k">DATE</span><span class="v">2026·04·24 · 09:00</span></div>
+            <div><span class="k">LOC</span><span class="v">上海</span></div>
+            <div><span class="k">BY</span><span class="v">邓鑫</span></div>
+          </div>
+        </div>
+        <div class="memo-body">
+          <div class="abstract">
+            <span class="abstract-label">SUMMARY</span>
+            双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通，预计 5 月前确定可行合作项目。
+          </div>
+
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">01</span><span class="sec-name">Participants · 与会人员</span></div>
+            <table class="attend-tbl">
+              <tr>
+                <th>我方</th>
+                <td>张心如 Janice，邓鑫</td>
+              </tr>
+              <tr>
+                <th>客户</th>
+                <td>tom，王总</td>
+              </tr>
+              <tr>
+                <th>其他</th>
+                <td>jim（法律顾问）</td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">02</span><span class="sec-name">Exhibits · 会议画板</span></div>
+            <div class="exhibit">
+              <div class="exhibit-label">EXHIBIT A</div>
+              <div class="img">
+                <svg viewBox="0 0 340 200" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="340" height="200" fill="#fdfbf4"/>
+                  <text x="16" y="26" font-family="serif" font-size="12" font-weight="600" fill="#2e2820">合作品类范围</text>
+                  <rect x="16" y="42" width="94" height="42" fill="none" stroke="#5a6e3a" stroke-width="1.2"/>
+                  <text x="30" y="67" font-size="10" fill="#5a6e3a">消毒湿巾</text>
+                  <rect x="123" y="42" width="94" height="42" fill="none" stroke="#5a6e3a" stroke-width="1.2"/>
+                  <text x="144" y="67" font-size="10" fill="#5a6e3a">医用口罩</text>
+                  <rect x="230" y="42" width="94" height="42" fill="none" stroke="#5a6e3a" stroke-width="1.2"/>
+                  <text x="246" y="67" font-size="10" fill="#5a6e3a">手术衣</text>
+                  <line x1="170" y1="88" x2="170" y2="116" stroke="#8a7a5a" stroke-width="1"/>
+                  <polygon points="166,112 170,120 174,112" fill="#8a7a5a"/>
+                  <rect x="60" y="122" width="220" height="56" fill="#f0ecd5" stroke="#c9a85a" stroke-width="1.2"/>
+                  <text x="80" y="145" font-size="11" fill="#7a5a18" font-weight="500">4月赴美考察 → 对齐买手</text>
+                  <text x="80" y="163" font-size="10" fill="#8a6b40">5月前确定首批试点 SKU</text>
+                </svg>
+              </div>
+              <div class="exhibit-cap">合作品类与推进节奏，由徐老师主导白板记录。</div>
+            </div>
+            <div class="exhibit">
+              <div class="exhibit-label">EXHIBIT B</div>
+              <div class="img">
+                <svg viewBox="0 0 340 140" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="340" height="140" fill="#fdfbf4"/>
+                  <text x="16" y="26" font-family="serif" font-size="12" font-weight="600" fill="#2e2820">阶梯报价模型</text>
+                  <line x1="30" y1="120" x2="310" y2="120" stroke="#8a7a5a" stroke-width="1"/>
+                  <line x1="30" y1="40" x2="30" y2="120" stroke="#8a7a5a" stroke-width="1"/>
+                  <polyline points="40,100 90,85 140,70 200,60 260,55 300,50" fill="none" stroke="#5a6e3a" stroke-width="2"/>
+                  <circle cx="90" cy="85" r="3" fill="#5a6e3a"/>
+                  <circle cx="200" cy="60" r="3" fill="#5a6e3a"/>
+                </svg>
+              </div>
+              <div class="exhibit-cap">量价梯度模型草图（徐老师白板推演）。</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">03</span><span class="sec-name">References · 完整纪要</span></div>
+            <a class="refs-item" href="#">
+              <span class="ref-name">会议原文</span>
+              <span class="ref-tag">FEISHU DOCX →</span>
+            </a>
+            <a class="refs-item" href="#">
+              <span class="ref-name">会议录音 · 带转写</span>
+              <span class="ref-tag">MINUTES →</span>
+            </a>
+          </div>
+
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">04</span><span class="sec-name">Field Photos · 现场留影</span></div>
+            <div class="photos">
+              <div class="photo-cell"><svg viewBox="0 0 80 80"><defs><linearGradient id="vcp1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d8cba8"/><stop offset="1" stop-color="#8a7a5a"/></linearGradient></defs><rect width="80" height="80" fill="url(#vcp1)"/><circle cx="40" cy="32" r="10" fill="#fdfbf4" opacity="0.4"/></svg></div>
+              <div class="photo-cell"><svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#5a6e3a"/><rect x="10" y="20" width="60" height="40" fill="#fdfbf4" opacity="0.3"/></svg></div>
+              <div class="photo-cell"><svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#a0522d"/><circle cx="30" cy="30" r="12" fill="#fdfbf4" opacity="0.5"/></svg></div>
+            </div>
+          </div>
+
+          <div class="sign-off">
+            <span class="sign-av">邓</span>
+            <div class="sign-meta">
+              <div class="sig-name">邓鑫</div>
+              <div class="sig-role">RECORDED · 2026·04·24</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="viewport-tag">AI PROCESSING STATE</div>
+      <div class="viewport vc">
+        <div class="memo-head">
+          <a class="memo-back" href="#">← BACK</a>
+          <div class="memo-badge">· MEMORANDUM ·</div>
+          <div class="memo-re ai-wait">—— 待 AI 提炼 ——</div>
+          <div class="memo-fields">
+            <div><span class="k">DATE</span><span class="v">2026·04·23 · 15:30</span></div>
+            <div><span class="k">BY</span><span class="v">邓鑫</span></div>
+          </div>
+        </div>
+        <div class="memo-body">
+          <div class="abstract ai-wait">
+            AI 正在整理这场会议的摘要与画板，通常 30–90 秒就绪。
+          </div>
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">02</span><span class="sec-name">Exhibits · 会议画板</span></div>
+            <div class="exhibit-wait">
+              <span class="bracket">[ PENDING ANALYSIS ]</span>
+              <span class="meta">AI 正从会议纪要中提取白板图像</span>
+            </div>
+          </div>
+          <div class="section">
+            <div class="sec-h"><span class="sec-n">03</span><span class="sec-name">References</span></div>
+            <a class="refs-item" href="#">
+              <span class="ref-name">会议原文</span>
+              <span class="ref-tag">FEISHU DOCX →</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- VARIANT D · Card Feed                                            -->
+    <!-- ============================================================= -->
+    <div class="variant">
+      <div class="variant-head">
+        <div class="variant-label">Variant D</div>
+        <h2 class="variant-name">卡片流式 · Card Feed</h2>
+        <p class="variant-tag">
+          像 Apple Notes / Craft 的卡片流：每个 section 是独立圆角软卡，
+          hero 卡带微渐变高亮主题 + 进展，其他 section 各司其职。
+          最"移动原生"，点击反馈最舒服。
+        </p>
+        <div class="tradeoff-row">
+          <span class="tradeoff pos">移动端最原生</span>
+          <span class="tradeoff pos">模块化，易扩展</span>
+          <span class="tradeoff pos">点击热区友好</span>
+          <span class="tradeoff neg">卡片之间间距吃一点屏幕</span>
+          <span class="tradeoff neg">气质偏消费级 C 端</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5 · DONE STATE</div>
+      <div class="viewport vd">
+        <div class="nav">
+          <a class="nav-back" href="#">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            返回
+          </a>
+          <div class="nav-ctx">英科再生 · 跟进</div>
+        </div>
+        <div class="feed">
+
+          <!-- Hero card -->
+          <div class="card hero">
+            <div class="hero-ctx">2026 · 04 · 24 · 周四 · 09:00</div>
+            <h1 class="hero-title">英科再生合作洽谈跟进</h1>
+            <p class="hero-prog">双方确认合作品类范围，4 月赴美考察后由徐老师与英科买手进一步沟通，预计 5 月前确定可行合作项目。</p>
+            <div class="hero-meta">
+              <span class="meta-pill">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                上海
+              </span>
+              <span class="meta-pill">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                09:00
+              </span>
+              <span class="meta-pill">5 人参会</span>
+            </div>
+          </div>
+
+          <!-- People card -->
+          <div class="card people-card">
+            <div class="card-h">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              参会人员
+            </div>
+            <div class="people-item">
+              <span class="chip-role chip-us">我方</span>
+              <span class="vd-av-stack"><span class="av">张</span><span class="av">邓</span></span>
+              <span class="names">张心如 Janice，邓鑫</span>
+            </div>
+            <div class="people-item">
+              <span class="chip-role chip-cust">客户</span>
+              <span class="names">tom，王总</span>
+            </div>
+            <div class="people-item">
+              <span class="chip-role chip-other">其他</span>
+              <span class="names">jim（律师）</span>
+            </div>
+          </div>
+
+          <!-- Boards card -->
+          <div class="card boards-card">
+            <div class="card-h">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+              会议画板 · AI 提取
+            </div>
+            <div class="boards-wrap">
+              <div class="board-img">
+                <svg viewBox="0 0 340 200" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="340" height="200" fill="#fafaf5"/>
+                  <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">合作品类范围</text>
+                  <rect x="16" y="42" width="94" height="42" fill="#eff5ff" stroke="#2b6dd6" stroke-width="1.2"/>
+                  <text x="30" y="67" font-size="10" fill="#2044a8">消毒湿巾</text>
+                  <rect x="123" y="42" width="94" height="42" fill="#eff5ff" stroke="#2b6dd6" stroke-width="1.2"/>
+                  <text x="144" y="67" font-size="10" fill="#2044a8">医用口罩</text>
+                  <rect x="230" y="42" width="94" height="42" fill="#eff5ff" stroke="#2b6dd6" stroke-width="1.2"/>
+                  <text x="246" y="67" font-size="10" fill="#2044a8">手术衣</text>
+                  <line x1="170" y1="88" x2="170" y2="116" stroke="#999" stroke-width="1"/>
+                  <polygon points="166,112 170,120 174,112" fill="#999"/>
+                  <rect x="60" y="122" width="220" height="56" fill="#fff4e0" stroke="#e8a04a" stroke-width="1.2"/>
+                  <text x="80" y="145" font-size="11" fill="#7a4018" font-weight="500">4月赴美考察 → 对齐买手</text>
+                  <text x="80" y="163" font-size="10" fill="#8a6540">5月前确定试点 SKU</text>
+                </svg>
+              </div>
+              <div class="board-img">
+                <svg viewBox="0 0 340 140" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="340" height="140" fill="#fafaf5"/>
+                  <text x="16" y="26" font-family="sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">阶梯报价模型</text>
+                  <line x1="30" y1="120" x2="310" y2="120" stroke="#999" stroke-width="1"/>
+                  <line x1="30" y1="40" x2="30" y2="120" stroke="#999" stroke-width="1"/>
+                  <polyline points="40,100 90,85 140,70 200,60 260,55 300,50" fill="none" stroke="#2b6dd6" stroke-width="2"/>
+                  <circle cx="90" cy="85" r="3" fill="#2b6dd6"/>
+                  <circle cx="200" cy="60" r="3" fill="#2b6dd6"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Links card -->
+          <div class="card links-card">
+            <a class="link-tap doc" href="#">
+              <span class="icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <div class="body">
+                <div class="t">会议原文</div>
+                <div class="s">飞书文档 · 完整纪要文字</div>
+              </div>
+              <span class="arrow">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+            </a>
+            <a class="link-tap mic" href="#">
+              <span class="icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+              </span>
+              <div class="body">
+                <div class="t">会议录音</div>
+                <div class="s">飞书妙记 · 带转写</div>
+              </div>
+              <span class="arrow">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+            </a>
+          </div>
+
+          <!-- Photos card -->
+          <div class="card photos-card">
+            <div class="card-h">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              现场照片
+            </div>
+            <div class="photos-grid">
+              <div class="cell"><svg viewBox="0 0 80 80"><defs><linearGradient id="vdp1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9d3e6"/><stop offset="1" stop-color="#5a6e8a"/></linearGradient></defs><rect width="80" height="80" fill="url(#vdp1)"/><circle cx="40" cy="32" r="10" fill="#fff" opacity="0.5"/></svg></div>
+              <div class="cell"><svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#2b6dd6"/><rect x="10" y="20" width="60" height="40" fill="#fff" opacity="0.3"/></svg></div>
+              <div class="cell"><svg viewBox="0 0 80 80"><rect width="80" height="80" fill="#5a8a6e"/><circle cx="30" cy="30" r="12" fill="#fff" opacity="0.5"/></svg></div>
+            </div>
+          </div>
+
+          <div class="owner-row">
+            <span class="o-av">邓</span>
+            <span>记录人 · 邓鑫 · 2026·04·24</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="viewport-tag">AI PROCESSING STATE</div>
+      <div class="viewport vd">
+        <div class="nav">
+          <a class="nav-back" href="#">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            返回
+          </a>
+          <div class="nav-ctx">英科再生 · 跟进</div>
+        </div>
+        <div class="feed">
+          <div class="card hero">
+            <div class="hero-ctx">2026 · 04 · 23 · 周三 · 15:30</div>
+            <div class="hero-title ai-wait"></div>
+            <p class="hero-prog ai-wait">AI 正在整理这场会议，约 30 秒后就绪</p>
+            <div class="hero-meta">
+              <span class="meta-pill">3 人参会</span>
+            </div>
+          </div>
+          <div class="card boards-card">
+            <div class="card-h">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+              会议画板 · AI 提取
+            </div>
+            <div class="board-wait">
+              <div class="icon-stack"><span></span><span></span><span></span></div>
+              正在从会议纪要中提取画板
+              <span class="hint">通常 30–90 秒，可先看下方「会议原文」</span>
+            </div>
+          </div>
+          <div class="card links-card">
+            <a class="link-tap doc" href="#">
+              <span class="icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <div class="body">
+                <div class="t">会议原文</div>
+                <div class="s">飞书文档 · 完整纪要文字</div>
+              </div>
+              <span class="arrow">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- SUMMARY                                                          -->
+  <!-- ============================================================= -->
+  <div style="margin-top:56px;padding:24px;background:#fff;border-radius:16px;border:1px solid #e3dfd6;">
+    <h3 style="font-family:'Fraunces','Noto Serif SC',serif;font-weight:600;font-size:20px;margin:0 0 16px;letter-spacing:-0.01em;">推荐 & 取舍对照</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:10px 12px 8px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#8a8a8a;border-bottom:1px solid #e0ddd4;">方案</th>
+          <th style="text-align:left;padding:10px 12px 8px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#8a8a8a;border-bottom:1px solid #e0ddd4;">气质定位</th>
+          <th style="text-align:left;padding:10px 12px 8px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#8a8a8a;border-bottom:1px solid #e0ddd4;">最适合</th>
+          <th style="text-align:left;padding:10px 12px 8px;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#8a8a8a;border-bottom:1px solid #e0ddd4;">跟列表卡片（B 日历左锚）搭配度</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fdf6e8;">
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;font-weight:600;font-family:'Fraunces','Noto Serif SC',serif;font-size:15px;">D 卡片流式 ★</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">Apple Notes · 移动原生</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">飞书 H5 场景最自然。hero 卡 serif 标题跟列表的 sans 形成阅读感，进展突出</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">高（列表 sans 扁平、详情卡片分区）</td>
+        </tr>
+        <tr>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;font-weight:600;font-family:'Fraunces','Noto Serif SC',serif;font-size:15px;">B 飞书原生文档</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">飞书 Docs · 零学习</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">团队已经非常依赖飞书文档、想保持"同一个语言"</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">中（列表强个性，详情强一致）</td>
+        </tr>
+        <tr>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;font-weight:600;font-family:'Fraunces','Noto Serif SC',serif;font-size:15px;">A 编辑专栏</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">Bloomberg 长篇</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">产品有"品牌感"追求，愿意做字体加载投入</td>
+          <td style="padding:12px;border-bottom:1px solid #efece4;vertical-align:top;line-height:1.55;">中（气质跳跃大）</td>
+        </tr>
+        <tr>
+          <td style="padding:12px;vertical-align:top;line-height:1.55;font-weight:600;font-family:'Fraunces','Noto Serif SC',serif;font-size:15px;">C 简报备忘</td>
+          <td style="padding:12px;vertical-align:top;line-height:1.55;">McKinsey Memo</td>
+          <td style="padding:12px;vertical-align:top;line-height:1.55;">销售管理层看 / 存档归类 / 对外输出</td>
+          <td style="padding:12px;vertical-align:top;line-height:1.55;">低（详情太正式，跟列表不像一家）</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:16px 0 0;font-size:12.5px;color:#6b6b6b;line-height:1.7;">
+      <strong>推荐 D（卡片流式）</strong>：列表用日历左锚（时间线视图）+ 详情用卡片流（深度阅读视图）气质互补，
+      都是"移动原生 + 偏 Apple Notes 品味"，用户从列表点进详情感受是一致的；
+      画板 AI 处理中用三点跳动动画 + 虚线框占位，状态最明确。
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

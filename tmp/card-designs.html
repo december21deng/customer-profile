@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM 跟进卡片 · 设计方案对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============ reset & page chrome ============ */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    color: #1a1a1a;
+    background: #eceae6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 1680px;
+    margin: 0 auto;
+    padding: 48px 40px 120px;
+  }
+  .page-header {
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #c9c5bb;
+  }
+  .page-title {
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-weight: 600;
+    font-size: 40px;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    color: #1a1a1a;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: #5a5a5a;
+    margin: 0;
+    max-width: 720px;
+    line-height: 1.65;
+  }
+
+  .variants {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 32px;
+  }
+  .variant {
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    border: 1px solid #e3dfd6;
+  }
+  .variant-head {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed #d5d1c6;
+  }
+  .variant-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #a09a8a;
+    margin-bottom: 6px;
+  }
+  .variant-name {
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+  .variant-tagline {
+    font-size: 13px;
+    color: #6b6b6b;
+    margin: 0 0 12px;
+    line-height: 1.55;
+  }
+  .variant-tradeoff {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .tradeoff {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #f3efe6;
+    color: #5c5548;
+    letter-spacing: 0.02em;
+  }
+  .tradeoff.neg { background: #fbe9e3; color: #8b3b20; }
+  .tradeoff.pos { background: #e6efe3; color: #3d5b2e; }
+
+  /* mobile viewport frame */
+  .viewport {
+    width: 375px;
+    max-width: 100%;
+    margin: 0 auto;
+    background: var(--vp-bg, #f5f3ee);
+    border-radius: 14px;
+    padding: 16px;
+    min-height: 560px;
+  }
+  .viewport-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #a09a8a;
+    text-align: center;
+    margin: 10px 0 14px;
+    letter-spacing: 0.1em;
+  }
+
+  /* ===================================================================== */
+  /* VARIANT A · 编辑报刊式 (Editorial)                                     */
+  /* ===================================================================== */
+  .va { --vp-bg: #f5f1e8; }
+  .va .card {
+    background: #fdfbf5;
+    padding: 18px 18px 16px;
+    border-radius: 2px;
+    border: none;
+    position: relative;
+  }
+  .va .card + .card { margin-top: 14px; }
+  .va .card::after {
+    content: '';
+    position: absolute;
+    left: 18px; right: 18px; bottom: 0;
+    height: 1px;
+    background: linear-gradient(to right, #c9b99a 0, #c9b99a 24px, transparent 24px);
+  }
+  .va .card:last-child::after { display: none; }
+  .va .kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #a0522d;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .va .kicker .dot { width: 4px; height: 4px; background: #a0522d; border-radius: 50%; }
+  .va .title {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 700;
+    font-size: 19px;
+    line-height: 1.35;
+    color: #1a1a1a;
+    letter-spacing: -0.005em;
+    margin: 0 0 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .va .progress {
+    font-family: 'Noto Serif SC', serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #3a3a3a;
+    margin: 0 0 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-indent: 2em;
+  }
+  .va .rule {
+    height: 1px;
+    background: #e5ddca;
+    margin: 0 0 12px;
+  }
+  .va .people {
+    font-size: 12.5px;
+    color: #4a4a4a;
+    line-height: 1.8;
+  }
+  .va .people-row + .people-row { margin-top: 2px; }
+  .va .role-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #8a7a5a;
+    margin-right: 10px;
+    font-weight: 500;
+  }
+  .va .time-dot { color: #a0522d; padding: 0 6px; }
+
+  .va .title.ai-wait {
+    font-style: italic;
+    color: #a09a8a;
+    font-weight: 400;
+  }
+  .va .progress.ai-wait {
+    color: #a09a8a;
+    font-style: italic;
+    text-indent: 0;
+  }
+  .va .progress.ai-wait::before {
+    content: '——';
+    color: #c9b99a;
+    margin-right: 8px;
+  }
+
+  /* ===================================================================== */
+  /* VARIANT B · 日历左锚式 (Calendar Anchor)                                */
+  /* ===================================================================== */
+  .vb { --vp-bg: #f6f7f9; }
+  .vb .card {
+    background: #fff;
+    padding: 16px;
+    border-radius: 12px;
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 16px;
+    border: 1px solid #eceef2;
+  }
+  .vb .card + .card { margin-top: 10px; }
+  .vb .date-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: center;
+    padding: 4px 0 0;
+    border-right: 1px solid #eceef2;
+    padding-right: 16px;
+    margin-right: -2px;
+  }
+  .vb .date-month {
+    font-size: 11px;
+    color: #8a96a8;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+    font-weight: 500;
+  }
+  .vb .date-day {
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1;
+    color: #1a1f2e;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .vb .date-weekday {
+    font-size: 11px;
+    color: #8a96a8;
+    margin-bottom: 10px;
+  }
+  .vb .date-time {
+    font-size: 11px;
+    color: #5a6578;
+    font-variant-numeric: tabular-nums;
+    padding: 3px 7px;
+    background: #eef1f6;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+  .vb .body-col { min-width: 0; }
+  .vb .loc {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #6b7688;
+    margin-bottom: 6px;
+  }
+  .vb .loc svg { opacity: 0.7; }
+  .vb .title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #14182a;
+    margin: 0 0 6px;
+    letter-spacing: -0.005em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vb .progress {
+    font-size: 13.5px;
+    color: #4a5467;
+    line-height: 1.6;
+    margin: 0 0 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vb .people-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #6b7688;
+  }
+  .vb .people-row + .people-row { margin-top: 4px; }
+  .vb .role-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+  .vb .role-us { background: #e3ecff; color: #2044a8; }
+  .vb .role-cust { background: #ffeedd; color: #a0570f; }
+  .vb .role-other { background: #eeeff3; color: #5a6578; }
+  .vb .people-names {
+    color: #2a3244;
+    font-size: 12.5px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vb .avatar-stack {
+    display: inline-flex;
+    margin-right: 4px;
+  }
+  .vb .avatar-stack .av {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #c9d3e6;
+    color: #2044a8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9.5px;
+    font-weight: 600;
+    border: 2px solid #fff;
+    margin-left: -6px;
+  }
+  .vb .avatar-stack .av:first-child { margin-left: 0; }
+  .vb .av-0 { background: #d4e0f6; color: #1e3d8f; }
+  .vb .av-1 { background: #ffdcc2; color: #8b3b0a; }
+
+  .vb .title.ai-wait {
+    display: inline-block;
+    width: 75%;
+    height: 13px;
+    background: linear-gradient(90deg, #eef1f6 0%, #dfe4ed 50%, #eef1f6 100%);
+    background-size: 200% 100%;
+    border-radius: 3px;
+    animation: shimmer 1.6s ease-in-out infinite;
+    margin: 2px 0 10px;
+    vertical-align: middle;
+  }
+  .vb .progress.ai-wait {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #9aa4b6;
+    font-size: 12.5px;
+    font-style: italic;
+  }
+  .vb .progress.ai-wait::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #8aa4e5;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ===================================================================== */
+  /* VARIANT C · 堆叠分区式 (Zoned Stack)                                    */
+  /* ===================================================================== */
+  .vc { --vp-bg: #f4f4f4; }
+  .vc .card {
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #ededed;
+  }
+  .vc .card + .card { margin-top: 12px; }
+  .vc .zone-meta {
+    padding: 11px 16px;
+    background: #fafaf9;
+    border-bottom: 1px solid #eeeeec;
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .vc .zone-meta .date {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: #2a2a2a;
+    letter-spacing: 0.01em;
+  }
+  .vc .zone-meta .sep {
+    width: 3px; height: 3px;
+    background: #ccc;
+    border-radius: 50%;
+  }
+  .vc .zone-meta .loc {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: #666;
+  }
+
+  .vc .zone-content { padding: 14px 16px 12px; }
+  .vc .title {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.38;
+    color: #1a1a1a;
+    margin: 0 0 8px;
+    letter-spacing: -0.005em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vc .progress {
+    font-size: 13.5px;
+    color: #555;
+    line-height: 1.65;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .vc .zone-people {
+    padding: 10px 16px;
+    background: #fafaf9;
+    border-top: 1px solid #eeeeec;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .vc .role-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .vc .role-tag {
+    flex-shrink: 0;
+    width: 36px;
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 0;
+    border-radius: 3px;
+  }
+  .vc .role-us   { background: #eef3ff; color: #3257c0; }
+  .vc .role-cust { background: #fff1e0; color: #a35d00; }
+  .vc .role-other{ background: #f1f1f1; color: #6a6a6a; }
+  .vc .avatar-stack {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .vc .avatar-stack .av {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #d4e0f6;
+    color: #3257c0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    border: 2px solid #fafaf9;
+    margin-left: -6px;
+  }
+  .vc .avatar-stack .av:first-child { margin-left: 0; }
+  .vc .role-names {
+    color: #333;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .vc .title.ai-wait,
+  .vc .progress.ai-wait {
+    color: #999;
+    font-style: italic;
+  }
+  .vc .title.ai-wait {
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .vc .title.ai-wait::before,
+  .vc .progress.ai-wait::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #b8b8b8;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .vc .progress.ai-wait {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  /* ===================================================================== */
+  /* VARIANT D · 极简线条式 (Minimal Line)                                   */
+  /* ===================================================================== */
+  .vd { --vp-bg: #fafafa; }
+  .vd .card {
+    background: transparent;
+    padding: 16px 0 18px;
+    position: relative;
+    padding-left: 20px;
+  }
+  .vd .card + .card {
+    border-top: 1px solid #eaeaea;
+  }
+  .vd .card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20px;
+    bottom: 22px;
+    width: 2px;
+    background: #2a6b54;
+    border-radius: 1px;
+  }
+  .vd .card.ai::before { background: #d0d0d0; }
+  .vd .card.failed::before { background: #c94a4a; }
+
+  .vd .meta-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #888;
+    margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+  .vd .meta-top .date {
+    color: #2a2a2a;
+    font-weight: 500;
+  }
+  .vd .meta-top .sep { color: #ccc; }
+  .vd .title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #1a1a1a;
+    margin: 0 0 5px;
+    letter-spacing: -0.005em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vd .progress {
+    font-size: 13.5px;
+    color: #5a5a5a;
+    line-height: 1.6;
+    margin: 0 0 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .vd .people-line {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.7;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+  }
+  .vd .role-seg {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .vd .role-seg .role-k {
+    color: #a0a0a0;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+  }
+  .vd .role-seg .role-v {
+    color: #2a2a2a;
+  }
+  .vd .avatar-stack {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+  .vd .avatar-stack .av {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #d8e4d4;
+    color: #2a6b54;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+    border: 1.5px solid #fafafa;
+    margin-left: -5px;
+  }
+  .vd .avatar-stack .av:first-child { margin-left: 0; }
+
+  .vd .title.ai-wait,
+  .vd .progress.ai-wait {
+    color: #a0a0a0;
+    font-weight: 400;
+    font-style: italic;
+  }
+  .vd .title.ai-wait::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: #c0c0c0;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: sweep 1.6s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%, 100% { opacity: 0.3; width: 10px; }
+    50% { opacity: 0.8; width: 30px; }
+  }
+
+  /* ===================================================================== */
+  /* notes / summary                                                        */
+  /* ===================================================================== */
+  .summary {
+    margin-top: 56px;
+    padding: 24px;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e3dfd6;
+  }
+  .summary h3 {
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-weight: 600;
+    font-size: 20px;
+    margin: 0 0 16px;
+    letter-spacing: -0.01em;
+  }
+  .summary table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .summary th {
+    text-align: left;
+    padding: 10px 12px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+    border-bottom: 1px solid #e0ddd4;
+  }
+  .summary td {
+    padding: 12px;
+    border-bottom: 1px solid #efece4;
+    vertical-align: top;
+    line-height: 1.55;
+  }
+  .summary td:first-child {
+    font-weight: 600;
+    font-family: 'Fraunces', 'Noto Serif SC', serif;
+    font-size: 15px;
+    white-space: nowrap;
+    width: 140px;
+  }
+  .summary tr:last-child td { border-bottom: none; }
+  .summary .rec {
+    background: #fdf6e8;
+  }
+  .summary .rec td:first-child::after {
+    content: ' ★';
+    color: #c08a1f;
+  }
+
+  @media (max-width: 900px) {
+    .variants { grid-template-columns: 1fr; }
+    .page { padding: 24px 16px 80px; }
+    .page-title { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="page-header">
+    <h1 class="page-title">CRM 跟进卡片 · 设计方案对比</h1>
+    <p class="page-sub">
+      4 个差异化方向。数据完全相同，都展示三种状态：<strong>正常</strong>、<strong>AI 处理中</strong>、<strong>长文本 + 多人员</strong>。
+      所有方案都去掉了冗余的"人员"外层 kv key，改成角色本身做视觉分组。
+    </p>
+  </header>
+
+  <div class="variants">
+
+    <!-- ============================================================= -->
+    <!-- A · Editorial                                                   -->
+    <!-- ============================================================= -->
+    <div class="variant va">
+      <div class="variant-head">
+        <div class="variant-label">Variant A</div>
+        <h2 class="variant-name">编辑报刊式</h2>
+        <p class="variant-tagline">
+          像一页简报。Noto Serif SC 做标题，极细分隔线，JetBrains Mono 做时间戳。
+          会议主题当主角，视觉权重最重。
+        </p>
+        <div class="variant-tradeoff">
+          <span class="tradeoff pos">最像"卡片"</span>
+          <span class="tradeoff pos">标题主导力强</span>
+          <span class="tradeoff neg">信息密度低</span>
+          <span class="tradeoff neg">衬线字体在小屏上非系统字体 ≈ 加载</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5</div>
+      <div class="viewport">
+
+        <!-- normal -->
+        <div class="card">
+          <div class="kicker">
+            <span class="dot"></span>
+            <span>4月24日<span class="time-dot">·</span>09:00</span>
+            <span>上海</span>
+          </div>
+          <h3 class="title">英科再生合作洽谈跟进</h3>
+          <p class="progress">
+            双方确认合作品类范围，4月赴美考察后由徐老师与英科买手进一步沟通，预计5月前确定可行合作项目。
+          </p>
+          <div class="rule"></div>
+          <div class="people">
+            <div class="people-row">
+              <span class="role-label">Us</span>张心如 Janice，邓鑫
+            </div>
+            <div class="people-row">
+              <span class="role-label">Client</span>tom
+            </div>
+            <div class="people-row">
+              <span class="role-label">Other</span>jim
+            </div>
+          </div>
+        </div>
+
+        <!-- ai processing -->
+        <div class="card">
+          <div class="kicker">
+            <span class="dot"></span>
+            <span>4月23日<span class="time-dot">·</span>15:30</span>
+          </div>
+          <h3 class="title ai-wait">—— 纪要提炼中 ——</h3>
+          <p class="progress ai-wait">AI 正在通读会议纪要</p>
+          <div class="rule"></div>
+          <div class="people">
+            <div class="people-row">
+              <span class="role-label">Us</span>邓鑫
+            </div>
+            <div class="people-row">
+              <span class="role-label">Client</span>李总
+            </div>
+          </div>
+        </div>
+
+        <!-- long content -->
+        <div class="card">
+          <div class="kicker">
+            <span class="dot"></span>
+            <span>4月18日<span class="time-dot">·</span>10:00</span>
+            <span>深圳龙华</span>
+          </div>
+          <h3 class="title">华润万家生鲜供应链数字化升级项目第二次需求评审</h3>
+          <p class="progress">
+            华润方提出三个核心诉求：供应商准入流程简化、冷链温控实时回传、临期品智能调度。我方建议先试点华南区 20 家门店，Q3 评估 ROI 后推广全国。双方约定下周三前交付技术方案 v2。
+          </p>
+          <div class="rule"></div>
+          <div class="people">
+            <div class="people-row">
+              <span class="role-label">Us</span>张心如 Janice，邓鑫，王磊，刘丽华
+            </div>
+            <div class="people-row">
+              <span class="role-label">Client</span>陈总，林经理，采购部三位同事
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- B · Calendar Anchor                                             -->
+    <!-- ============================================================= -->
+    <div class="variant vb">
+      <div class="variant-head">
+        <div class="variant-label">Variant B</div>
+        <h2 class="variant-name">日历左锚式</h2>
+        <p class="variant-tagline">
+          左列 62px 放大日期，右列放内容。跟 Gmail / Calendar / Linear 同构，
+          用户一眼扫时间线，角色用彩色 chip 区分。
+        </p>
+        <div class="variant-tradeoff">
+          <span class="tradeoff pos">时间线扫读快</span>
+          <span class="tradeoff pos">角色彩色分组清晰</span>
+          <span class="tradeoff pos">最熟悉的交互模式</span>
+          <span class="tradeoff neg">地点只能塞进副标题</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5</div>
+      <div class="viewport">
+
+        <!-- normal -->
+        <div class="card">
+          <div class="date-col">
+            <div class="date-month">APR</div>
+            <div class="date-day">24</div>
+            <div class="date-weekday">周四</div>
+            <div class="date-time">09:00</div>
+          </div>
+          <div class="body-col">
+            <div class="loc">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              上海
+            </div>
+            <h3 class="title">英科再生合作洽谈跟进</h3>
+            <p class="progress">双方确认合作品类范围，4月赴美考察后由徐老师与英科买手进一步沟通，预计5月前确定可行合作项目。</p>
+            <div class="people-row">
+              <span class="role-chip role-us">我方</span>
+              <span class="avatar-stack">
+                <span class="av av-0">张</span>
+                <span class="av av-1">邓</span>
+              </span>
+              <span class="people-names">张心如 Janice，邓鑫</span>
+            </div>
+            <div class="people-row">
+              <span class="role-chip role-cust">客户</span>
+              <span class="people-names">tom</span>
+            </div>
+            <div class="people-row">
+              <span class="role-chip role-other">其他</span>
+              <span class="people-names">jim</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ai processing -->
+        <div class="card">
+          <div class="date-col">
+            <div class="date-month">APR</div>
+            <div class="date-day">23</div>
+            <div class="date-weekday">周三</div>
+            <div class="date-time">15:30</div>
+          </div>
+          <div class="body-col">
+            <span class="title ai-wait"></span>
+            <p class="progress ai-wait">AI 正在整理这场会议…</p>
+            <div class="people-row">
+              <span class="role-chip role-us">我方</span>
+              <span class="people-names">邓鑫</span>
+            </div>
+            <div class="people-row">
+              <span class="role-chip role-cust">客户</span>
+              <span class="people-names">李总</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- long -->
+        <div class="card">
+          <div class="date-col">
+            <div class="date-month">APR</div>
+            <div class="date-day">18</div>
+            <div class="date-weekday">周五</div>
+            <div class="date-time">10:00</div>
+          </div>
+          <div class="body-col">
+            <div class="loc">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              深圳龙华
+            </div>
+            <h3 class="title">华润万家生鲜供应链数字化升级第二次需求评审</h3>
+            <p class="progress">华润方提出三个核心诉求：供应商准入流程简化、冷链温控实时回传、临期品智能调度。我方建议先试点华南区 20 家门店…</p>
+            <div class="people-row">
+              <span class="role-chip role-us">我方</span>
+              <span class="avatar-stack">
+                <span class="av av-0">张</span>
+                <span class="av av-1">邓</span>
+              </span>
+              <span class="people-names">张心如，邓鑫，王磊 +1</span>
+            </div>
+            <div class="people-row">
+              <span class="role-chip role-cust">客户</span>
+              <span class="people-names">陈总，林经理 +3</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- C · Zoned Stack                                                 -->
+    <!-- ============================================================= -->
+    <div class="variant vc">
+      <div class="variant-head">
+        <div class="variant-label">Variant C</div>
+        <h2 class="variant-name">堆叠分区式</h2>
+        <p class="variant-tagline">
+          三个带底色区分的 zone：顶部 meta、中间内容、底部人员。
+          每个角色一行，label 做成 36px 等宽 badge 左对齐，人员名字可省略。
+        </p>
+        <div class="variant-tradeoff">
+          <span class="tradeoff pos">区块边界清晰</span>
+          <span class="tradeoff pos">每个字段都有自己的家</span>
+          <span class="tradeoff neg">卡片偏高（3 角色约 190px）</span>
+          <span class="tradeoff neg">背景分区跟飞书扁平风略冲</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5</div>
+      <div class="viewport">
+
+        <!-- normal -->
+        <div class="card">
+          <div class="zone-meta">
+            <span class="date">4月24日 09:00</span>
+            <span class="sep"></span>
+            <span class="loc">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              上海
+            </span>
+          </div>
+          <div class="zone-content">
+            <h3 class="title">英科再生合作洽谈跟进</h3>
+            <p class="progress">双方确认合作品类范围，4月赴美考察后由徐老师与英科买手进一步沟通，预计5月前确定可行合作项目。</p>
+          </div>
+          <div class="zone-people">
+            <div class="role-group">
+              <span class="role-tag role-us">我方</span>
+              <span class="avatar-stack">
+                <span class="av">张</span>
+                <span class="av">邓</span>
+              </span>
+              <span class="role-names">张心如 Janice，邓鑫</span>
+            </div>
+            <div class="role-group">
+              <span class="role-tag role-cust">客户</span>
+              <span class="role-names">tom</span>
+            </div>
+            <div class="role-group">
+              <span class="role-tag role-other">其他</span>
+              <span class="role-names">jim</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ai processing -->
+        <div class="card">
+          <div class="zone-meta">
+            <span class="date">4月23日 15:30</span>
+          </div>
+          <div class="zone-content">
+            <h3 class="title ai-wait">AI 正在整理会议纪要</h3>
+            <p class="progress ai-wait">标题与进展约 30 秒后就绪</p>
+          </div>
+          <div class="zone-people">
+            <div class="role-group">
+              <span class="role-tag role-us">我方</span>
+              <span class="role-names">邓鑫</span>
+            </div>
+            <div class="role-group">
+              <span class="role-tag role-cust">客户</span>
+              <span class="role-names">李总</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- long -->
+        <div class="card">
+          <div class="zone-meta">
+            <span class="date">4月18日 10:00</span>
+            <span class="sep"></span>
+            <span class="loc">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              深圳龙华
+            </span>
+          </div>
+          <div class="zone-content">
+            <h3 class="title">华润万家生鲜供应链数字化升级项目第二次需求评审</h3>
+            <p class="progress">华润方提出三个核心诉求：供应商准入流程简化、冷链温控实时回传、临期品智能调度。我方建议先试点华南区 20 家门店…</p>
+          </div>
+          <div class="zone-people">
+            <div class="role-group">
+              <span class="role-tag role-us">我方</span>
+              <span class="avatar-stack">
+                <span class="av">张</span>
+                <span class="av">邓</span>
+              </span>
+              <span class="role-names">张心如，邓鑫，王磊，刘丽华</span>
+            </div>
+            <div class="role-group">
+              <span class="role-tag role-cust">客户</span>
+              <span class="role-names">陈总，林经理，采购部三位同事</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- D · Minimal Line                                                -->
+    <!-- ============================================================= -->
+    <div class="variant vd">
+      <div class="variant-head">
+        <div class="variant-label">Variant D</div>
+        <h2 class="variant-name">极简线条式</h2>
+        <p class="variant-tagline">
+          无卡片容器，只用一条 2px 纵向彩条做状态指示（绿=正常、灰=处理中、红=失败）。
+          卡片间用 hairline 分隔。最高信息密度。
+        </p>
+        <div class="variant-tradeoff">
+          <span class="tradeoff pos">一屏 3-4 张</span>
+          <span class="tradeoff pos">状态条一眼看全列表健康度</span>
+          <span class="tradeoff pos">最轻的视觉噪声</span>
+          <span class="tradeoff neg">点击热区需要额外 padding</span>
+          <span class="tradeoff neg">没有"卡片感"</span>
+        </div>
+      </div>
+
+      <div class="viewport-hint">375 × Feishu H5</div>
+      <div class="viewport">
+
+        <!-- normal -->
+        <div class="card">
+          <div class="meta-top">
+            <span class="date">4月24日 09:00</span>
+            <span class="sep">·</span>
+            <span>上海</span>
+          </div>
+          <h3 class="title">英科再生合作洽谈跟进</h3>
+          <p class="progress">双方确认合作品类范围，4月赴美考察后由徐老师与英科买手进一步沟通，预计5月前确定可行合作项目。</p>
+          <div class="people-line">
+            <span class="role-seg">
+              <span class="role-k">我方</span>
+              <span class="avatar-stack">
+                <span class="av">张</span>
+                <span class="av">邓</span>
+              </span>
+              <span class="role-v">张心如 Janice，邓鑫</span>
+            </span>
+            <span class="role-seg">
+              <span class="role-k">客户</span>
+              <span class="role-v">tom</span>
+            </span>
+            <span class="role-seg">
+              <span class="role-k">其他</span>
+              <span class="role-v">jim</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- ai processing -->
+        <div class="card ai">
+          <div class="meta-top">
+            <span class="date">4月23日 15:30</span>
+          </div>
+          <h3 class="title ai-wait">AI 整理中</h3>
+          <p class="progress ai-wait">会议主题与进展生成中…</p>
+          <div class="people-line">
+            <span class="role-seg">
+              <span class="role-k">我方</span>
+              <span class="role-v">邓鑫</span>
+            </span>
+            <span class="role-seg">
+              <span class="role-k">客户</span>
+              <span class="role-v">李总</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- long content -->
+        <div class="card">
+          <div class="meta-top">
+            <span class="date">4月18日 10:00</span>
+            <span class="sep">·</span>
+            <span>深圳龙华</span>
+          </div>
+          <h3 class="title">华润万家生鲜供应链数字化升级项目第二次需求评审</h3>
+          <p class="progress">华润方提出三个核心诉求：供应商准入流程简化、冷链温控实时回传、临期品智能调度。我方建议先试点华南区 20 家门店…</p>
+          <div class="people-line">
+            <span class="role-seg">
+              <span class="role-k">我方</span>
+              <span class="avatar-stack">
+                <span class="av">张</span>
+                <span class="av">邓</span>
+              </span>
+              <span class="role-v">张心如，邓鑫，王磊，刘丽华</span>
+            </span>
+            <span class="role-seg">
+              <span class="role-k">客户</span>
+              <span class="role-v">陈总，林经理 +3</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- short card with failed state -->
+        <div class="card failed">
+          <div class="meta-top">
+            <span class="date">4月12日 14:00</span>
+          </div>
+          <h3 class="title" style="color:#c94a4a;font-weight:500;">AI 处理失败</h3>
+          <p class="progress" style="color:#c94a4a;font-style:italic;">纪要访问权限不足，可点击重试</p>
+          <div class="people-line">
+            <span class="role-seg">
+              <span class="role-k">我方</span>
+              <span class="role-v">张心如</span>
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================= -->
+  <!-- summary                                                         -->
+  <!-- ============================================================= -->
+  <div class="summary">
+    <h3>推荐顺序 & 取舍对照</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:140px">方案</th>
+          <th>最适合</th>
+          <th>信息密度</th>
+          <th>实现难度</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="rec">
+          <td>B 日历左锚式</td>
+          <td>日常扫视 + 按时间线找会议。角色 chip 上色后"谁是我方谁是客户"一眼就分</td>
+          <td>中（3 人员行）</td>
+          <td>低</td>
+        </tr>
+        <tr>
+          <td>D 极简线条式</td>
+          <td>一屏想看到最多记录；重度用户。左侧色条让"失败"和"AI 处理中"在列表里一目了然</td>
+          <td>高（4 条/屏）</td>
+          <td>低</td>
+        </tr>
+        <tr>
+          <td>A 编辑报刊式</td>
+          <td>销售给客户演示、希望显得"经过整理"。标题 Serif 提气，但不适合日常高频操作</td>
+          <td>低（1.5-2 条/屏）</td>
+          <td>中（字体加载）</td>
+        </tr>
+        <tr>
+          <td>C 堆叠分区式</td>
+          <td>字段最整齐，区块清晰；但跟飞书整体扁平风略冲，视觉上"过度结构化"</td>
+          <td>低-中</td>
+          <td>低</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
