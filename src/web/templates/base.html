@@ -1603,158 +1603,211 @@
   }
 
   /* ============================================================= */
-  /* followup detail · 卡片流式 (Variant D)                           */
+  /* followup detail · 飞书 section card 结构                         */
   /* ============================================================= */
-  .fd-nav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px 10px;
-    position: sticky; top: 0; z-index: 10;
-    background: rgba(247, 248, 250, 0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    margin: -16px -16px 4px;  /* 撑开父容器 padding */
-  }
-  .fd-nav-back {
-    display: inline-flex; align-items: center; gap: 3px;
-    font-size: 14px; font-weight: 500;
-    color: var(--blue-600); text-decoration: none;
-  }
-  .fd-nav-ctx {
-    font-size: 12px; color: var(--neutral-500); font-weight: 500;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    max-width: 60%;
-  }
 
-  .fd-feed {
-    display: flex; flex-direction: column; gap: 12px;
-    padding-bottom: 40px;
+  /* ---- Top (not a card) ---- */
+  .fd-top {
+    background: var(--surface);
+    padding: 12px 16px 18px;
+    margin: -16px -16px 10px;    /* 撑开父容器 padding，跟背景色融合 */
   }
-  .fd-card {
+  .fd-topbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    min-height: 24px;
+  }
+  .fd-topbar-back {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; margin-left: -4px;
+    color: var(--neutral-900); text-decoration: none;
+  }
+  .fd-topbar-back:active { opacity: 0.6; }
+  .fd-topbar-title {
+    font-size: 15px; font-weight: 500; color: var(--neutral-900);
+    margin: 0; line-height: 1.4;
+  }
+  .fd-main-title {
+    font-size: 18px; font-weight: 500;
+    line-height: 1.4; color: var(--neutral-900);
+    margin-bottom: 4px;
+    word-break: break-word;
+  }
+  .fd-main-title.fd-ai-skel { margin: 4px 0 8px; }
+  .fd-main-title.fd-ai-failed {
+    color: #F54A45; font-weight: 500;
+  }
+  .fd-main-sub {
+    font-size: 13px; color: var(--neutral-500);
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  .fd-main-sub-sep { color: var(--neutral-300); padding: 0 4px; }
+
+  /* ---- Section card ---- */
+  .fd-sec {
     background: var(--surface);
     border-radius: 12px;
     padding: 16px;
+    margin-bottom: 10px;
     border: 1px solid rgba(31, 35, 41, 0.06);
   }
-  .fd-card-h {
+  .fd-sec-header {
     display: flex; align-items: center; gap: 8px;
-    font-size: 11.5px; font-weight: 500; letter-spacing: 0.04em;
-    color: var(--neutral-500); margin-bottom: 10px;
-    text-transform: uppercase;
+    margin-bottom: 14px;
   }
-  .fd-card-h svg { color: var(--neutral-400); flex-shrink: 0; }
-  .fd-card-h-tag {
+  .fd-sec-bar {
+    flex-shrink: 0;
+    width: 2px; height: 14px;
+    background: var(--blue-600);
+    border-radius: 1px;
+  }
+  .fd-sec-title {
+    font-size: 15px; font-weight: 500;
+    color: var(--neutral-900);
+    margin: 0; line-height: 1.4;
+    letter-spacing: 0;
+  }
+  .fd-sec-tag {
     margin-left: auto;
-    font-size: 10.5px; letter-spacing: 0.04em;
+    font-size: 11px; font-weight: 500;
     padding: 2px 8px; border-radius: 999px;
-    background: rgba(51, 112, 255, 0.1);
+    background: rgba(51, 112, 255, 0.08);
     color: var(--blue-600);
-    font-weight: 500;
-    text-transform: none;
+    letter-spacing: 0;
   }
 
-  /* ---- Hero ---- */
-  .fd-hero {
-    background: var(--surface);
-    /* 跟其他卡片一致，不再用米黄渐变 */
+  /* ---- Single field (沟通内容总结 的 一句话进展) ---- */
+  .fd-field-label {
+    font-size: 13px; color: var(--neutral-500);
+    margin-bottom: 4px;
+    line-height: 1.5;
   }
-  .fd-hero-ctx {
-    font-size: 12px; color: var(--neutral-500); margin-bottom: 8px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
-  .fd-hero-title {
-    /* 飞书规范：系统字体（PingFang SC），无衬线 */
-    font-weight: 600; font-size: 20px; line-height: 1.4;
-    color: var(--neutral-900); letter-spacing: -0.005em;
-    margin: 0 0 10px;
+  .fd-field-value {
+    font-size: 14px; line-height: 1.65;
+    color: var(--neutral-800);
     word-break: break-word;
   }
-  .fd-hero-prog {
-    font-size: 14px; line-height: 1.6;
-    color: var(--neutral-700); margin: 0 0 14px;
-    word-break: break-word;
-  }
-  .fd-hero-meta {
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    padding-top: 12px; border-top: 1px solid var(--neutral-100);
-  }
-  .fd-pill {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 4px 10px; border-radius: 999px;
-    background: var(--neutral-100);
-    color: var(--neutral-700);
-    font-size: 11.5px; font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
-  .fd-pill svg { opacity: 0.65; flex-shrink: 0; }
-
-  /* ---- Hero AI states ---- */
-  .fd-hero-title.fd-ai-skel {
-    display: block;
-    -webkit-line-clamp: unset;
-    margin: 4px 0 12px;
-  }
-  .fd-skel-bar {
-    display: block; width: 70%; height: 14px;
-    background: linear-gradient(90deg, var(--neutral-100) 0%, var(--neutral-50) 50%, var(--neutral-100) 100%);
-    background-size: 200% 100%;
-    border-radius: 3px;
-    animation: fd-shimmer 1.6s ease-in-out infinite;
-  }
-  .fd-hero-prog.fd-ai-pulse {
+  .fd-field-value.fd-ai-pulse {
     display: flex; align-items: center; gap: 8px;
     color: var(--neutral-400);
   }
-  .fd-hero-prog.fd-ai-pulse::before {
+  .fd-field-value.fd-ai-pulse::before {
     content: '';
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--blue-600);
     animation: fd-pulse 1.4s ease-in-out infinite;
     flex-shrink: 0;
   }
-  .fd-hero-title.fd-ai-failed {
-    color: #F54A45; font-weight: 500;
-    font-size: 16px;
-  }
-  .fd-hero-prog.fd-ai-failed-hint {
-    color: #F54A45;
-  }
+  .fd-field-value.fd-ai-failed-hint { color: #F54A45; }
 
-  /* ---- People card ---- */
-  .fd-people-card { padding: 16px; }
-  .fd-people-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--neutral-100);
-    font-size: 14px; color: var(--neutral-900);
+  /* ---- KV grid（跟进信息/参会信息/其他信息）---- */
+  .fd-kv {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    column-gap: 16px;
+    row-gap: 12px;
+    line-height: 1.6;
+  }
+  .fd-kv-k {
+    font-size: 13px; color: var(--neutral-500);
+    font-weight: 400;
+    align-self: start;
+    padding-top: 2px;
+    letter-spacing: 0;
+  }
+  .fd-kv-v {
+    font-size: 14px; color: var(--neutral-800);
     min-width: 0;
-  }
-  .fd-people-item:last-child { border-bottom: none; }
-  .fd-people-item:first-child { padding-top: 2px; }
-  .fd-people-item .fc-chip {
-    flex-shrink: 0;
-    padding: 3px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    border-radius: 4px;
-    letter-spacing: 0.02em;
-    line-height: 1.3;
-  }
-  .fd-people-item .fc-avatar-stack .fc-av {
-    width: 24px; height: 24px;
-    font-size: 10.5px;
-    border: 2px solid var(--surface);
-    margin-left: -8px;
-  }
-  .fd-people-item .fc-avatar-stack .fc-av:first-child { margin-left: 0; }
-  .fd-people-names {
-    flex: 1; min-width: 0;
-    color: var(--neutral-800);
     word-break: break-word;
+    letter-spacing: 0;
   }
 
-  /* ---- Boards (会议总结) card ---- */
-  .fd-boards-card { padding: 16px; }
+  /* ---- Person (avatar + name)，跟列表卡片成对样式一致 ---- */
+  .fd-person {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .fd-av {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #d4e0f6;
+    color: #1e3d8f;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .fd-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* 我方参会：多人成对 + 换行 */
+  .fd-people-wrap {
+    display: flex; flex-wrap: wrap;
+    gap: 6px 14px;
+    align-items: center;
+  }
+  /* 客户/其他：只名字，可换行 */
+  .fd-names-wrap {
+    display: flex; flex-wrap: wrap;
+    gap: 4px 14px;
+    align-items: baseline;
+  }
+
+  /* 蓝色链接（跟进客户）*/
+  .fd-link {
+    color: var(--blue-600);
+    text-decoration: none;
+  }
+  .fd-link:active { opacity: 0.7; }
+
+  /* Rich preview（关联原文 / 关联妙记）*/
+  .fd-rich-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--neutral-50);
+    border: 1px solid var(--neutral-100);
+    border-radius: 8px;
+    text-decoration: none; color: inherit;
+    max-width: 100%;
+  }
+  .fd-rich-link:active { background: var(--neutral-100); }
+  .fd-rich-icon {
+    width: 36px; height: 36px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: var(--surface);
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    color: var(--blue-600);
+  }
+  .fd-rich-body { flex: 1; min-width: 0; }
+  .fd-rich-title {
+    font-size: 14px; font-weight: 500;
+    color: var(--neutral-900);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fd-rich-sub {
+    font-size: 12px; color: var(--neutral-500);
+    margin-top: 2px;
+  }
+
+  /* Photos grid */
+  .fd-photos-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  }
+  .fd-photo-cell-v2 {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 6px; overflow: hidden;
+    background: var(--neutral-100);
+  }
+  .fd-photo-cell-v2 img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+
+  /* Boards 状态卡（AI 处理中/失败/空 + 已生成） */
   .fd-boards-wrap {
     display: flex; flex-direction: column; gap: 10px;
   }
@@ -1770,7 +1823,7 @@
   .fd-board-wait {
     padding: 28px 16px;
     background: var(--neutral-50);
-    border: 1px dashed var(--neutral-200, #c9cdd4);
+    border: 1px dashed var(--neutral-200, #C9CDD4);
     border-radius: 8px;
     text-align: center;
     color: var(--neutral-600);
@@ -1781,11 +1834,7 @@
     display: block; margin-top: 5px;
     font-size: 11.5px; color: var(--neutral-400);
   }
-  .fd-board-wait-empty {
-    background: var(--neutral-50);
-    border-color: var(--neutral-100);
-    color: var(--neutral-500);
-  }
+  .fd-board-wait-empty { color: var(--neutral-500); }
   .fd-board-wait-empty .fd-hint { color: var(--neutral-400); }
   .fd-board-wait-failed {
     background: #fff4f3;
@@ -1793,6 +1842,7 @@
     color: #F54A45;
   }
   .fd-board-wait-failed .fd-hint { color: #F54A45; opacity: 0.75; }
+
   .fd-dots {
     display: flex; justify-content: center; gap: 4px;
     margin-bottom: 10px;
@@ -1807,72 +1857,16 @@
   .fd-dots span:nth-child(2) { animation-delay: 0.2s; }
   .fd-dots span:nth-child(3) { animation-delay: 0.4s; }
 
-  /* ---- Links card ---- */
-  .fd-links-card { padding: 6px; }
-  .fd-link-tap {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px; border-radius: 10px;
-    text-decoration: none; color: inherit;
-  }
-  .fd-link-tap:active { background: var(--neutral-50); }
-  .fd-link-tap + .fd-link-tap { border-top: 1px solid var(--neutral-100); }
-  .fd-link-icon {
-    width: 32px; height: 32px; border-radius: 8px;
-    display: inline-flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    background: rgba(51, 112, 255, 0.08);
-    color: var(--blue-600);
-  }
-  /* 飞书规范：同系蓝色，靠图标（文档 / 话筒）区分原文 vs 录音 */
-  .fd-link-doc .fd-link-icon,
-  .fd-link-mic .fd-link-icon {
-    background: rgba(51, 112, 255, 0.08);
-    color: var(--blue-600);
-  }
-  .fd-link-body { flex: 1; min-width: 0; }
-  .fd-link-t {
-    font-size: 14px; font-weight: 500; color: var(--neutral-900);
-  }
-  .fd-link-s {
-    font-size: 11.5px; color: var(--neutral-500); margin-top: 1px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .fd-link-arrow { color: var(--neutral-300); flex-shrink: 0; }
-
-  /* ---- Photos card ---- */
-  .fd-photos-card { padding: 16px; }
-  .fd-photos-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
-  }
-  .fd-photo-cell-v2 {
-    display: block;
-    aspect-ratio: 1;
-    border-radius: 8px; overflow: hidden;
-    background: var(--neutral-100);
-  }
-  .fd-photo-cell-v2 img {
-    width: 100%; height: 100%;
-    object-fit: cover; display: block;
+  /* Skeleton bar（主标题 AI 处理中）*/
+  .fd-skel-bar {
+    display: block; width: 70%; height: 14px;
+    background: linear-gradient(90deg, var(--neutral-100) 0%, var(--neutral-50) 50%, var(--neutral-100) 100%);
+    background-size: 200% 100%;
+    border-radius: 3px;
+    animation: fd-shimmer 1.6s ease-in-out infinite;
   }
 
-  /* ---- Owner footer row ---- */
-  .fd-owner-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 4px 4px;
-    font-size: 12px; color: var(--neutral-500);
-  }
-  .fd-owner-av {
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--blue-600); color: #fff;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 10px; font-weight: 600;
-    overflow: hidden; flex-shrink: 0;
-  }
-  .fd-owner-av img {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-  }
-
-  /* ---- Animations ---- */
+  /* Animations */
   @keyframes fd-shimmer {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
