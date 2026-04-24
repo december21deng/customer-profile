@@ -123,7 +123,7 @@
         <rect x="3" y="3" width="18" height="18" rx="2"/>
         <path d="M3 9h18M9 3v18"/>
       </svg>
-      会议画板
+      会议总结
       <span class="fd-card-h-tag">AI 提取</span>
     </div>
 
@@ -138,17 +138,17 @@
     {% elif r.board_state == 'processing' %}
       <div class="fd-board-wait">
         <div class="fd-dots"><span></span><span></span><span></span></div>
-        正在从会议纪要中提取画板
+        AI 正在生成会议总结
         <span class="fd-hint">通常 30–90 秒，可先看下方「会议原文」</span>
       </div>
     {% elif r.board_state == 'failed' %}
       <div class="fd-board-wait fd-board-wait-failed">
-        画板提取失败
+        AI 总结生成失败
         <span class="fd-hint">纪要访问或解析异常，请点击下方「会议原文」直接查看</span>
       </div>
     {% else %}
       <div class="fd-board-wait fd-board-wait-empty">
-        本次会议未识别到画板
+        本次会议暂无 AI 总结内容
         <span class="fd-hint">正文内容可在下方「会议原文」中查看</span>
       </div>
     {% endif %}
