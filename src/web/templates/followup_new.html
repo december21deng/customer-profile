@@ -703,7 +703,7 @@
         if (it.description) {
           metaLine = '<div class="m-desc">' + escMin(it.description) + '</div>';
         }
-        el.innerHTML = '<span class="m-icon">🎙</span><div class="m-body">' +
+        el.innerHTML = '<span class="m-icon">' + MIC_SVG + '</span><div class="m-body">' +
                        titleLine + metaLine + '</div>';
         minutesBody.appendChild(el);
       });
@@ -720,6 +720,15 @@
       }
     }
 
+    // 扁平麦克风 SVG —— 替代 emoji（emoji 在 macOS 上像立体玩具）
+    var MIC_SVG = '<svg class="mic-svg" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<rect x="9" y="3" width="6" height="11" rx="3"/>' +
+      '<path d="M5 11a7 7 0 0 0 14 0"/>' +
+      '<line x1="12" y1="18" x2="12" y2="21"/>' +
+      '<line x1="8" y1="21" x2="16" y2="21"/>' +
+      '</svg>';
+
     function renderBigEmpty(title, hint, actionLabel, actionHref) {
       var action = '';
       if (actionLabel && actionHref) {
@@ -728,7 +737,7 @@
       }
       minutesBody.innerHTML =
         '<div class="picker-big-empty">' +
-        '  <div class="picker-big-icon">🎙</div>' +
+        '  <div class="picker-big-icon">' + MIC_SVG + '</div>' +
         '  <div class="picker-big-title">' + escMin(title) + '</div>' +
         (hint ? '  <div class="picker-big-hint">' + escMin(hint) + '</div>' : '') +
         action +
@@ -836,7 +845,7 @@
                   state === 'error' ? '<span class="m-card-err">无权访问</span>' :
                                       '<span class="m-card-hint">验证中…</span>';
       minutesCard.innerHTML =
-        '<span class="m-card-icon">🎙</span>' +
+        '<span class="m-card-icon">' + MIC_SVG + '</span>' +
         '<div class="m-card-body">' +
         '  <div class="m-card-title">' + escMin(title) + '</div>' +
         '  <div class="m-card-meta">' + escMin(metaStr || '') + '</div>' +

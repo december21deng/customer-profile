@@ -1138,18 +1138,20 @@
     max-height: min(560px, calc(100vh - 80px));
     background: var(--surface);
     border-radius: 12px;
-    box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04);
     z-index: 200;
     display: flex; flex-direction: column;
     overflow: hidden;
   }
-  /* 浮层背后的半透明遮罩，和飞书原生一致 */
+  /* 浮层背后的淡遮罩：低透明 + 轻模糊，不要把页面盖成灰板 */
   .minutes-panel::before {
     content: '';
     position: fixed;
     left: -100vw; top: -100vh;
     width: 300vw; height: 300vh;
-    background: rgba(0,0,0,0.3);
+    background: rgba(31,35,41,0.10);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     z-index: -1;
   }
   .minutes-panel-head {
@@ -1194,7 +1196,12 @@
   }
   .minutes-picker-item:last-child { border-bottom: 0; }
   .minutes-picker-item:active { background: var(--neutral-50); }
-  .minutes-picker-item .m-icon { font-size: 18px; line-height: 1.4; flex-shrink: 0; }
+  .minutes-picker-item .m-icon {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    color: var(--neutral-500);
+    display: flex; align-items: center; justify-content: center;
+  }
   .minutes-picker-item .m-body { flex: 1; min-width: 0; }
   .minutes-picker-item .m-title {
     font-size: 14px; color: var(--neutral-900); font-weight: 500;
@@ -1219,13 +1226,26 @@
   }
   .minutes-more:active { background: var(--neutral-50); }
 
+  /* 通用 SVG 麦克风图标（扁平，thin stroke）*/
+  .mic-svg {
+    width: 18px; height: 18px;
+    color: var(--neutral-500);
+    vertical-align: middle;
+  }
+
   /* picker 大号空状态 —— 里面什么都没时占满 body */
   .picker-big-empty {
     padding: 48px 24px;
     text-align: center;
     color: var(--neutral-400);
   }
-  .picker-big-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+  .picker-big-icon {
+    width: 40px; height: 40px;
+    margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--neutral-300);
+  }
+  .picker-big-icon .mic-svg { width: 40px; height: 40px; }
   .picker-big-title { font-size: 15px; color: var(--neutral-700); font-weight: 500; }
   .picker-big-hint { margin-top: 6px; font-size: 13px; color: var(--neutral-400); line-height: 1.5; }
   .picker-big-action {
@@ -1254,7 +1274,13 @@
     background: #FFF1F0;
     border-color: #FFCCC7;
   }
-  .selected-card .m-card-icon { font-size: 18px; flex-shrink: 0; }
+  .selected-card .m-card-icon {
+    width: 22px; height: 22px;
+    flex-shrink: 0;
+    color: var(--neutral-500);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .selected-card .m-card-icon .mic-svg { width: 22px; height: 22px; }
   .selected-card .m-card-body { flex: 1; min-width: 0; }
   .selected-card .m-card-title {
     font-size: 14px; color: var(--neutral-900); font-weight: 500;
