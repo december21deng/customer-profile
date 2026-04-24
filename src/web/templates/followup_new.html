@@ -464,11 +464,9 @@
       if (!pickAnchor.contains(e.target)) hidePanel();
     });
 
-    // -------- 时间输入：纯文本 + 自动补分隔符（及时型） ---------
-    // 用户输第 4 位数字完成年 → 立刻补 "-"；输第 6 位完成月 → 再补 "-"
-    // 删除时不能反向自动补，否则删不掉
+    // -------- 时间输入：纯文本 + 自动补分隔符 + 填完自动跳下一格 ----
     (function() {
-      function attachDateAutoFormat(el) {
+      function attachDateAutoFormat(el, nextEl) {
         el.addEventListener('input', function(e) {
           var isDel = e.inputType && e.inputType.indexOf('delete') === 0;
           var d = el.value.replace(/[^\d]/g, '').slice(0, 8);
@@ -482,9 +480,18 @@
               : d.slice(0, 4) + '-' + d.slice(4) + '-';
           else out = d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8);
           el.value = out;
+          // 填够 8 位数字（yyyymmdd）且用户是在输入（不是删除）→ 跳下一格
+          if (!isDel && d.length === 8 && nextEl) {
+            nextEl.focus();
+            // 如果下一格已有内容，光标移到末尾；否则落在空位上
+            if (nextEl.value) {
+              var v = nextEl.value;
+              nextEl.setSelectionRange(v.length, v.length);
+            }
+          }
         });
       }
-      function attachTimeAutoFormat(el) {
+      function attachTimeAutoFormat(el, nextEl) {
         el.addEventListener('input', function(e) {
           var isDel = e.inputType && e.inputType.indexOf('delete') === 0;
           var d = el.value.replace(/[^\d]/g, '').slice(0, 4);
@@ -494,14 +501,22 @@
           else if (d.length === 2) out = isDel ? d : d + ':';
           else out = d.slice(0, 2) + ':' + d.slice(2, 4);
           el.value = out;
+          // 填够 4 位数字（hhmm）且是输入 → 跳下一格
+          if (!isDel && d.length === 4 && nextEl) {
+            nextEl.focus();
+            if (nextEl.value) {
+              var v = nextEl.value;
+              nextEl.setSelectionRange(v.length, v.length);
+            }
+          }
         });
       }
       var df = document.getElementById('f-date');
       var sf = document.getElementById('f-start');
       var ef = document.getElementById('f-end');
-      if (df) attachDateAutoFormat(df);
-      if (sf) attachTimeAutoFormat(sf);
-      if (ef) attachTimeAutoFormat(ef);
+      if (df) attachDateAutoFormat(df, sf);
+      if (sf) attachTimeAutoFormat(sf, ef);
+      if (ef) attachTimeAutoFormat(ef, null);  // 最后一格填完不再跳
     })();
 
     // -------- 飞书 H5 JSSDK 初始化（base.html 已经加载 + 签名）----
