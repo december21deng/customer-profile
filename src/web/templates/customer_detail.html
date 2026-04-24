@@ -34,52 +34,123 @@
 </nav>
 
 {% if tab == 'info' %}
-  <div class="stat-grid">
-    <div class="stat-card">
-      <div class="stat-label">累计订单</div>
-      {% if order_amount_display %}
-        <div class="stat-value">{{ order_amount_display }}</div>
-      {% else %}
-        <div class="stat-value empty">—</div>
-      {% endif %}
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">客户评分</div>
-      {% if c.crm_account_score not in (None, '', 0, '0') %}
-        <div class="stat-value">{{ c.crm_account_score }}</div>
-      {% else %}
-        <div class="stat-value empty">—</div>
-      {% endif %}
-    </div>
-  </div>
 
-  <section class="section">
-    <div class="kv">
-      <span class="k">客户所有人</span>
-      <span class="v">{{ c.owner_name or '企业公共客户池' }}</span>
+  {# ============ 关键指标 ============ #}
+  <section class="fd-sec">
+    <div class="fd-sec-header">
+      <span class="fd-sec-bar"></span>
+      <h2 class="fd-sec-title">关键指标</h2>
     </div>
-    <div class="kv">
-      <span class="k">客户阶段</span>
-      <span class="v {% if not c.crm_sale_stage_id %}muted{% endif %}">—</span>
-    </div>
-    <div class="kv">
-      <span class="k">最近活动</span>
-      <span class="v">{{ recent_at_display }}</span>
-    </div>
-    <div class="kv">
-      <span class="k">建档时间</span>
-      <span class="v">{{ (c.crm_created_at or '—')[:10] }}</span>
+    <div class="fd-stat-grid">
+      <div class="fd-stat-item">
+        <div class="fd-stat-label">累计订单</div>
+        {% if order_amount_display %}
+          <div class="fd-stat-value">{{ order_amount_display }}</div>
+        {% else %}
+          <div class="fd-stat-value fd-stat-empty">—</div>
+        {% endif %}
+      </div>
+      <div class="fd-stat-item">
+        <div class="fd-stat-label">客户评分</div>
+        {% if c.crm_account_score not in (None, '', 0, '0') %}
+          <div class="fd-stat-value">{{ c.crm_account_score }}</div>
+        {% else %}
+          <div class="fd-stat-value fd-stat-empty">—</div>
+        {% endif %}
+      </div>
     </div>
   </section>
 
-  <section class="section">
-    <h3>客户概况</h3>
-    {% if c.summary %}
-      <div class="section-body">{{ c.summary }}</div>
-    {% else %}
-      <div class="section-hint">暂无概况，wiki 补充后显示</div>
-    {% endif %}
+  {# ============ 基本信息 ============ #}
+  <section class="fd-sec">
+    <div class="fd-sec-header">
+      <span class="fd-sec-bar"></span>
+      <h2 class="fd-sec-title">基本信息</h2>
+    </div>
+    <div class="fd-sec-body fd-kv">
+      <div class="fd-kv-k">客户所有人</div>
+      <div class="fd-kv-v">{{ c.owner_name or '企业公共客户池' }}</div>
+
+      <div class="fd-kv-k">客户阶段</div>
+      <div class="fd-kv-v">{{ '—' if not c.crm_sale_stage_id else '—' }}</div>
+
+      <div class="fd-kv-k">最近活动</div>
+      <div class="fd-kv-v">{{ recent_at_display }}</div>
+
+      <div class="fd-kv-k">建档时间</div>
+      <div class="fd-kv-v">{{ (c.crm_created_at or '—')[:10] }}</div>
+    </div>
   </section>
+
+  {# ============ 客户概况（wiki AI 生成）============ #}
+  <section class="fd-sec">
+    <div class="fd-sec-header">
+      <span class="fd-sec-bar"></span>
+      <h2 class="fd-sec-title">客户概况</h2>
+      {% if c.summary %}
+        <span class="fd-sec-tag">AI 生成</span>
+      {% endif %}
+    </div>
+    <div class="fd-sec-body">
+      {% if c.summary %}
+        <div class="fd-summary-text">{{ c.summary }}</div>
+      {% else %}
+        <div class="fd-empty-hint">暂无概况，wiki 补充后显示</div>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ============ 最新进展 · 最近 3 条跟进 ============ #}
+  <section class="fd-sec">
+    <div class="fd-sec-header">
+      <span class="fd-sec-bar"></span>
+      <h2 class="fd-sec-title">最新进展</h2>
+      {% if recent_followups %}
+        <span class="fd-sec-tag">AI 生成</span>
+      {% endif %}
+    </div>
+    <div class="fd-sec-body">
+      {% if recent_followups %}
+        <ul class="fd-progress-list">
+          {% for f in recent_followups %}
+            <a class="fd-progress-item" href="/followup/{{ f.id }}">
+              <div class="fd-progress-head">
+                <span class="fd-progress-date">
+                  {% if f.date_parts.month %}
+                    {{ f.date_parts.month }}{{ f.date_parts.day }}日
+                  {% else %}
+                    {{ f.date_display }}
+                  {% endif %}
+                </span>
+                <span class="fd-progress-title">{{ f.meeting_subtitle or f.meeting_title or '—' }}</span>
+              </div>
+              <div class="fd-progress-line
+                {%- if f.ai_state == 'processing' %} fd-ai-pulse{% endif -%}">
+                {% if f.ai_state == 'processing' %}
+                  处理中…
+                {% elif f.ai_state == 'failed' %}
+                  <span style="color:#F54A45">处理失败</span>
+                {% else %}
+                  {{ f.progress_line or '—' }}
+                {% endif %}
+              </div>
+            </a>
+          {% endfor %}
+        </ul>
+        <a class="fd-progress-more" href="/customers/{{ c.id }}?tab=followup">
+          查看全部跟进
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </a>
+      {% else %}
+        <div class="fd-empty-hint">还没有跟进记录，点击右下角 + 开始记录</div>
+      {% endif %}
+    </div>
+  </section>
+
 {% else %}
   {% if followups %}
     <div class="followup-list">

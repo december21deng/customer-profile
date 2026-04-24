@@ -694,10 +694,15 @@ def customer_detail(
 
     followups: list[dict] = []
     followup_next_cursor: str | None = None
+    recent_followups: list[dict] = []
     if tab == "followup":
         rows, has_next = _fetch_followup_page(None, customer_id, None, FOLLOWUP_PAGE_SIZE)
         followups = _decorate_followups(rows)
         followup_next_cursor = _next_followup_cursor(rows) if has_next else None
+    else:
+        # info tab：拉最近 3 条跟进，做"最新进展"卡片
+        rows, _ = _fetch_followup_page(None, customer_id, None, 3)
+        recent_followups = _decorate_followups(rows)
 
     return templates.TemplateResponse(
         "customer_detail.html",
@@ -709,5 +714,6 @@ def customer_detail(
             "order_amount_display": _format_amount(c.get("crm_total_order_amount")),
             "followups": followups,
             "followup_next_cursor": followup_next_cursor,
+            "recent_followups": recent_followups,
         },
     )
