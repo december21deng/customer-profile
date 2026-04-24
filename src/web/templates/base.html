@@ -1356,8 +1356,8 @@
     transform: translate(-50%, 0);
   }
 </style>
-  <!-- 飞书 H5 JSSDK：必须在 <body> 之前就把 Promise 同步创建好，
-       这样 {% block body %} 里的 <script> 才能 .then() 到它 -->
+  <!-- 飞书 H5 JSSDK：必须在 body 之前就把 Promise 同步创建好，
+       这样子模板里的 script 才能 .then() 到它 -->
   <script src="https://lf-scm-cn.feishucdn.com/lark/op/h5-js-sdk-1.5.30.js"
           crossorigin="anonymous"></script>
   <script>
