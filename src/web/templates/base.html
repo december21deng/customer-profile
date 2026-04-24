@@ -1383,6 +1383,14 @@
         .then(function(cfg) {
           if (!cfg || !cfg.appId) { throw new Error('config_no_appid'); }
           window.__feishuState = 'config_calling';
+          console.log('[jssdk] config params:', {
+            appId: cfg.appId,
+            timestamp: cfg.timestamp,
+            timestampType: typeof cfg.timestamp,
+            nonceStr: cfg.nonceStr,
+            signedUrl: href,
+            currentUrl: location.href.split('#')[0],
+          });
           h5sdk.config({
             appId: cfg.appId,
             timestamp: cfg.timestamp,
@@ -1400,7 +1408,12 @@
               window.__feishuState = 'config_fail';
               window.__feishuError = err;
               console.error('h5sdk.config onFail:', err);
-              showDiag('config_fail: ' + JSON.stringify(err));
+              showDiag(
+                'config_fail: ' + JSON.stringify(err) +
+                '\nsigned_url: ' + href +
+                '\ncurrent_url: ' + location.href.split('#')[0] +
+                '\nts: ' + cfg.timestamp + ' (' + typeof cfg.timestamp + ')'
+              );
               reject(err);
             },
           });

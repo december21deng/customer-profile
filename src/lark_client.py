@@ -165,16 +165,22 @@ def sign_jssdk(url: str) -> dict | None:
     ticket = _get_jsapi_ticket()
     if not ticket:
         return None
-    # 去掉 hash
+    # 去掉 hash；但 query string 保留（必须和 location.href.split('#')[0] 对齐）
     url = url.split("#", 1)[0]
-    timestamp = str(int(time.time()))
+    timestamp_int = int(time.time())
     nonce_str = secrets.token_hex(8)
-    string1 = f"jsapi_ticket={ticket}&noncestr={nonce_str}&timestamp={timestamp}&url={url}"
+    # 签名时 timestamp 是字符串拼接（和 WeChat / Feishu spec 一致）
+    string1 = (
+        f"jsapi_ticket={ticket}"
+        f"&noncestr={nonce_str}"
+        f"&timestamp={timestamp_int}"
+        f"&url={url}"
+    )
     signature = hashlib.sha1(string1.encode("utf-8")).hexdigest()
-    # JSSDK h5sdk.config 直接吃 camelCase，前端不用再转
+    # 返回的 JSON 里 timestamp 传 **int**（飞书 h5sdk.config 要求 number 类型）
     return {
         "appId": LARK_APP_ID,
-        "timestamp": timestamp,
+        "timestamp": timestamp_int,
         "nonceStr": nonce_str,
         "signature": signature,
     }
