@@ -24,6 +24,7 @@ from fastapi.templating import Jinja2Templates
 from src.db.connection import connect, transaction
 from src.ingest.pipeline import run as run_ingest_pipeline
 from src.lark_client import (
+    get_docx_title,
     get_minute_meta,
     get_user_access_token,
     search_feishu_users,
@@ -32,6 +33,7 @@ from src.lark_client import (
 )
 from src.web.auth import require_csrf_form
 from src import photo_storage
+from src.web import title_cache
 
 logger = logging.getLogger(__name__)
 
@@ -405,6 +407,46 @@ def _format_meeting_date_parts(s: str | None) -> dict:
     }
 
 
+def _lookup_doc_title(url: str | None, request, *, kind: str) -> str | None:
+    """实时拉 docx / minute 标题。kind: 'docx' | 'minute'。
+
+    走 5 分钟 TTL 内存缓存。失败/无权限/无登录 → 返回 None，模板用 fallback。
+    """
+    if not url:
+        return None
+    if kind == "docx":
+        token = _extract_doc_id(url)
+    elif kind == "minute":
+        token = _parse_minute_token(url)
+    else:
+        return None
+    if not token:
+        return None
+
+    # 缓存命中
+    hit, cached = title_cache.get(kind, token)
+    if hit:
+        return cached
+
+    # 需要 user_access_token 调飞书 API
+    open_id = getattr(request.state, "uid", "") or ""
+    if not open_id.startswith("ou_"):
+        return None
+    user_token = get_user_access_token(open_id)
+    if not user_token:
+        return None
+
+    if kind == "docx":
+        title = get_docx_title(token, user_token)
+    else:
+        meta, _err = get_minute_meta(token, user_token)
+        title = (meta or {}).get("title") if meta else None
+
+    # 即使 None 也缓存一下，避免 5 分钟内反复拉
+    title_cache.put(kind, token, title)
+    return title
+
+
 def _parse_our_people_detail(our_attendees_raw: str | None) -> list[dict]:
     """our_attendees JSON → [{id, name, avatar, initial}, ...]. 详情页复用。
     avatar 为空时从 user_tokens.avatar 按 open_id 补回（存量 bug backfill）。"""
@@ -512,6 +554,15 @@ def followup_detail(request: Request, record_id: str):
 
     r["date_parts"] = _format_meeting_date_parts(r.get("meeting_date"))
     r["date_end_time"] = r.get("meeting_end_time") or ""
+
+    # 实时拉 docx / 妙记标题（飞书文档标题可能会改，不存 DB）
+    # TTL 内存缓存 5 分钟避免每次刷新都打 API
+    r["minutes_title"] = _lookup_doc_title(
+        r.get("minutes_doc_url"), request, kind="docx",
+    )
+    r["transcript_title"] = _lookup_doc_title(
+        r.get("transcript_url"), request, kind="minute",
+    )
 
     # 总参会人数（hero meta pill）
     r["attendee_total"] = len(our_people) + len(client_list) + len(other_list)

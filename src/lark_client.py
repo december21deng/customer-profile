@@ -618,6 +618,33 @@ def search_minutes(
     }, None
 
 
+def get_docx_title(doc_id: str, user_access_token: str) -> str | None:
+    """GET /open-apis/docx/v1/documents/{doc_id} → title
+
+    只返回标题（失败返回 None，不抛）。
+    Scope: docx:document:readonly（user_access_token）
+    """
+    if not user_access_token or not doc_id:
+        return None
+    try:
+        resp = http_requests.get(
+            f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}",
+            headers={"Authorization": f"Bearer {user_access_token}"},
+            timeout=8,
+        )
+        data = resp.json()
+    except Exception:
+        logger.exception("get_docx_title: request failed doc=%s", doc_id[:12])
+        return None
+    if data.get("code", -1) != 0:
+        logger.info(
+            "get_docx_title: code=%s msg=%s doc=%s",
+            data.get("code"), data.get("msg"), doc_id[:12],
+        )
+        return None
+    return ((data.get("data") or {}).get("document") or {}).get("title")
+
+
 def get_minute_meta(
     minute_token: str,
     user_access_token: str,
