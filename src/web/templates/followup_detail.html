@@ -94,10 +94,33 @@
   </div>
 </section>
 
-{# ============ 2. 会议详情：打开原文 / 打开妙记（含画板、图片、文字） ============ #}
+{# ============ 2. 会议总结：ingest 时从 docx 抽出的画板 + 内嵌图片 ============ #}
+<section class="section">
+  <h3>会议总结</h3>
+  {% if r.minutes_media_list %}
+    <div class="fd-image-gallery">
+      {% for m in r.minutes_media_list %}
+        <a class="fd-image-cell" href="/api/image/{{ m.key }}" target="_blank" rel="noopener">
+          <img src="/api/image/{{ m.key }}"
+               alt="{{ '画板' if m.kind == 'board' else '图片' }} {{ loop.index }}"
+               loading="lazy">
+          {% if m.kind == 'board' %}
+            <span class="fd-image-hint">会议画板</span>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="section-hint">
+      抽取中或权限未就位（点击「打开原文」先行查看）。
+    </div>
+  {% endif %}
+</section>
+
+{# ============ 3. 会议详情：完整纪要（文字内容），在飞书原文 / 妙记中 ============ #}
 <section class="section">
   <h3>会议详情</h3>
-  <div class="section-hint">点击下方按钮在飞书中查看完整内容（含画板、图片、文字）。</div>
+  <div class="section-hint">会议纪要完整文字内容在飞书原文或妙记中。</div>
 
   <div class="fd-link-row">
     {% if r.minutes_doc_url %}
