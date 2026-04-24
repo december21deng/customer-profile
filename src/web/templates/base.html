@@ -1209,6 +1209,27 @@
   }
   .minutes-more:active { background: var(--neutral-50); }
 
+  /* picker 大号空状态 —— 里面什么都没时占满 body */
+  .picker-big-empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--neutral-400);
+  }
+  .picker-big-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+  .picker-big-title { font-size: 15px; color: var(--neutral-700); font-weight: 500; }
+  .picker-big-hint { margin-top: 6px; font-size: 13px; color: var(--neutral-400); line-height: 1.5; }
+  .picker-big-action {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    background: var(--blue-600);
+    color: #fff;
+    font-size: 13px;
+    text-decoration: none;
+  }
+  .picker-big-action:active { opacity: 0.8; }
+
   /* 已选卡片（妙记 / 会议纪要 通用）：hydrate 后替换按钮 */
   .selected-card {
     margin-top: 0;

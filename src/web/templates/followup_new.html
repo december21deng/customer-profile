@@ -465,24 +465,35 @@
       if (!pickAnchor.contains(e.target)) hidePanel();
     });
 
-    // -------- 时间输入：纯文本 + 自动补分隔符 --------------------
-    // 浏览器原生 date/time picker 图标太丑，换成 text + inputmode=numeric
-    // 打字时自动补 "-" / ":"，体验比手打格式符好
+    // -------- 时间输入：纯文本 + 自动补分隔符（及时型） ---------
+    // 用户输第 4 位数字完成年 → 立刻补 "-"；输第 6 位完成月 → 再补 "-"
+    // 删除时不能反向自动补，否则删不掉
     (function() {
       function attachDateAutoFormat(el) {
-        el.addEventListener('input', function() {
-          var v = el.value.replace(/[^\d]/g, '').slice(0, 8);
-          var out = v.slice(0, 4);
-          if (v.length > 4) out += '-' + v.slice(4, 6);
-          if (v.length > 6) out += '-' + v.slice(6, 8);
+        el.addEventListener('input', function(e) {
+          var isDel = e.inputType && e.inputType.indexOf('delete') === 0;
+          var d = el.value.replace(/[^\d]/g, '').slice(0, 8);
+          var out;
+          if (d.length === 0) out = '';
+          else if (d.length < 4) out = d;
+          else if (d.length === 4) out = isDel ? d : d + '-';
+          else if (d.length < 6) out = d.slice(0, 4) + '-' + d.slice(4);
+          else if (d.length === 6) out = isDel
+              ? d.slice(0, 4) + '-' + d.slice(4)
+              : d.slice(0, 4) + '-' + d.slice(4) + '-';
+          else out = d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8);
           el.value = out;
         });
       }
       function attachTimeAutoFormat(el) {
-        el.addEventListener('input', function() {
-          var v = el.value.replace(/[^\d]/g, '').slice(0, 4);
-          var out = v.slice(0, 2);
-          if (v.length > 2) out += ':' + v.slice(2, 4);
+        el.addEventListener('input', function(e) {
+          var isDel = e.inputType && e.inputType.indexOf('delete') === 0;
+          var d = el.value.replace(/[^\d]/g, '').slice(0, 4);
+          var out;
+          if (d.length === 0) out = '';
+          else if (d.length < 2) out = d;
+          else if (d.length === 2) out = isDel ? d : d + ':';
+          else out = d.slice(0, 2) + ':' + d.slice(2, 4);
           el.value = out;
         });
       }
@@ -501,8 +512,14 @@
     var docsPickerBtn = document.getElementById('docs-picker-btn');
     var docsEnvHint  = document.getElementById('docs-env-hint');
 
-    // 浏览器 fallback：先假设不在飞书，显示浏览器版的 UI
+    // 浏览器 fallback：先假设不在飞书，按钮置灰 + 点了给提示
     docsEnvHint.hidden = false;
+    docsPickerBtn.classList.add('disabled');
+    var docsClickStub = function(e) {
+      e.preventDefault();
+      alert('请在飞书客户端内打开小程序以选择会议纪要');
+    };
+    docsPickerBtn.addEventListener('click', docsClickStub);
 
     (window.__feishuReady || Promise.reject(new Error('no_feishu')))
       .then(function() {
@@ -659,6 +676,21 @@
       }
     }
 
+    function renderBigEmpty(title, hint, actionLabel, actionHref) {
+      var action = '';
+      if (actionLabel && actionHref) {
+        action = '<a class="picker-big-action" href="' + actionHref + '">' +
+                 escMin(actionLabel) + '</a>';
+      }
+      minutesBody.innerHTML =
+        '<div class="picker-big-empty">' +
+        '  <div class="picker-big-icon">🎙</div>' +
+        '  <div class="picker-big-title">' + escMin(title) + '</div>' +
+        (hint ? '  <div class="picker-big-hint">' + escMin(hint) + '</div>' : '') +
+        action +
+        '</div>';
+    }
+
     function minutesLoadPage(q, pageToken, reset) {
       if (minutesLoading) return;
       minutesLoading = true;
@@ -667,13 +699,20 @@
       fetch(url)
         .then(function(resp) {
           if (resp.status === 401) {
-            minutesBody.innerHTML = '<div class="picker-empty">请用飞书账号登录后再使用（<a href="/auth/lark?next=' +
-                                    encodeURIComponent(location.pathname + location.search) +
-                                    '">去登录</a>）</div>';
+            renderBigEmpty(
+              '需要登录飞书',
+              '以你的飞书账号身份搜索有权限的妙记',
+              '去飞书登录',
+              '/auth/lark?next=' + encodeURIComponent(location.pathname + location.search)
+            );
             throw new Error('unauthorized');
           }
           if (resp.status === 403) {
-            minutesBody.innerHTML = '<div class="picker-empty">「妙记搜索」权限审批中，请暂时粘贴链接</div>';
+            renderBigEmpty(
+              '「妙记搜索」权限审批中',
+              '审批通过后重新登录飞书即可使用',
+              null, null
+            );
             throw new Error('forbidden');
           }
           return resp.json();
@@ -681,12 +720,21 @@
         .then(function(data) {
           minutesHasMore = !!data.has_more;
           minutesPageToken = data.page_token || '';
-          renderMinutesItems(data.items || [], !reset);
+          var items = data.items || [];
+          if (items.length === 0 && !pageToken) {
+            renderBigEmpty(
+              q ? '没有找到匹配的妙记' : '近 30 天内你没有妙记',
+              q ? '试试其他关键字' : '录制一个会议后，新妙记会自动出现在这里',
+              null, null
+            );
+            return;
+          }
+          renderMinutesItems(items, !reset);
         })
         .catch(function(err) {
           if (err && (err.message === 'unauthorized' || err.message === 'forbidden')) return;
           console.error('minutes search failed:', err);
-          minutesBody.innerHTML = '<div class="picker-empty">搜索失败，请重试</div>';
+          renderBigEmpty('搜索失败', '网络或服务临时不可用，稍后重试', null, null);
         })
         .finally(function() { minutesLoading = false; });
     }
