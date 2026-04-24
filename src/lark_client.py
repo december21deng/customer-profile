@@ -165,24 +165,24 @@ def sign_jssdk(url: str) -> dict | None:
     ticket = _get_jsapi_ticket()
     if not ticket:
         return None
-    # 去掉 hash；query string 保留（必须和 location.href.split('#')[0] 对齐）
+    # 去掉 hash；query string 保留
     url = url.split("#", 1)[0]
-    # 飞书 h5sdk.config 要求 **毫秒级** timestamp（13 位数字）
-    # 见 https://open.feishu.cn/document/uYjL24iN/uQjMuQjMuQjM/authentication/h5sdkconfig
-    timestamp_ms = int(time.time() * 1000)
+    # 飞书文档虽然说"millisecond timestamp"，但实际要 **秒级**（10 位）。
+    # 官方文档 example 值也是 10 位秒级（1414587457）。
+    # 毫秒会被前端 h5sdk.config 本地校验拒掉，报 errorCode 104 invalid parameter。
+    timestamp = int(time.time())
     nonce_str = secrets.token_hex(8)
-    # 签名串用 timestamp 的纯字符串值（和服务端一致）
     string1 = (
         f"jsapi_ticket={ticket}"
         f"&noncestr={nonce_str}"
-        f"&timestamp={timestamp_ms}"
+        f"&timestamp={timestamp}"
         f"&url={url}"
     )
-    # SHA1 默认返 lowercase（Feishu 要求 lowercase）
+    # SHA1 hexdigest 默认 lowercase（飞书要求）
     signature = hashlib.sha1(string1.encode("utf-8")).hexdigest()
     return {
         "appId": LARK_APP_ID,
-        "timestamp": timestamp_ms,   # number 类型，毫秒级
+        "timestamp": timestamp,   # 秒级 int，签名串里也是同一个值
         "nonceStr": nonce_str,
         "signature": signature,
     }
