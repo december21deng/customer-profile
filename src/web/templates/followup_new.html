@@ -673,6 +673,37 @@
         .trim();
     }
 
+    // display_info 实际是拼接的 "标题 关键词: X,Y 所有者: Z 开始时间: T 时长: D"
+    // 从末尾往前抽字段，剩下的就是真标题
+    function parseMinuteInfo(raw) {
+      var s = stripHl(raw);
+      var info = { title: s, owner: '', startTime: '', duration: '' };
+
+      var m = s.match(/\s*时长[:：]\s*(.+?)\s*$/);
+      if (m) { info.duration = m[1]; s = s.slice(0, m.index).trim(); }
+
+      m = s.match(/\s*开始时间[:：]\s*(.+?)\s*$/);
+      if (m) { info.startTime = m[1]; s = s.slice(0, m.index).trim(); }
+
+      m = s.match(/\s*所有者[:：]\s*(.+?)\s*$/);
+      if (m) { info.owner = m[1]; s = s.slice(0, m.index).trim(); }
+
+      // 关键词列表整段扔掉（不是有用信息）
+      m = s.match(/\s*关键词[:：]\s*.+$/);
+      if (m) { s = s.slice(0, m.index).trim(); }
+
+      info.title = s.trim() || info.title;
+      return info;
+    }
+
+    // "2026.04.20 13:20:07" → "04-20 13:20"
+    function fmtMinuteDate(s) {
+      if (!s) return '';
+      var m = s.match(/(\d{4})[.\-\/](\d{2})[.\-\/](\d{2})[\s,T]*(\d{2}):(\d{2})/);
+      if (!m) return s;
+      return m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5];
+    }
+
     function renderMinutesItems(items, append) {
       if (!append) minutesBody.innerHTML = '';
       if (!items.length && !append) {
@@ -680,23 +711,33 @@
         return;
       }
       items.forEach(function(it) {
-        var title = stripHl(it.title || '未命名');
+        var info = parseMinuteInfo(it.title || '');
+        var title = info.title || '未命名';
         var el = document.createElement('button');
         el.type = 'button';
         el.className = 'minutes-picker-item';
         el.setAttribute('data-url', it.url || '');
         el.setAttribute('data-token', it.token || '');
         el.setAttribute('data-title', title);
-        // 左侧缩略图：飞书搜索 API 返回的 avatar 通常是封面图 URL；没有就回退到 mic SVG
+        // 左侧缩略图：有封面用封面，否则 mic 图标
         var avatar = it.avatar || '';
         var iconHtml = avatar
           ? '<span class="m-thumb"><img src="' + escMin(avatar) + '" alt="" ' +
             'onerror="this.parentNode.innerHTML=\'\'"></span>'
           : '<span class="m-icon">' + MIC_SVG + '</span>';
-        // description 字段是搜索命中的关键词噪音（不展示）；只渲染标题
+        // 副标题：开始时间 · 所有者 · 时长（只显示有的那些）
+        var metaParts = [];
+        var dateStr = fmtMinuteDate(info.startTime);
+        if (dateStr) metaParts.push(dateStr);
+        if (info.owner) metaParts.push(info.owner);
+        if (info.duration) metaParts.push(info.duration);
+        var metaLine = metaParts.length
+          ? '<div class="m-meta">' + escMin(metaParts.join(' · ')) + '</div>'
+          : '';
         el.innerHTML = iconHtml +
                        '<div class="m-body">' +
                        '  <div class="m-title">' + escMin(title) + '</div>' +
+                       metaLine +
                        '</div>';
         minutesBody.appendChild(el);
       });
