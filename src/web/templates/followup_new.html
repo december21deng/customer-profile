@@ -681,20 +681,23 @@
       }
       items.forEach(function(it) {
         var title = stripHl(it.title || '未命名');
-        var desc = stripHl(it.description || '');
         var el = document.createElement('button');
         el.type = 'button';
         el.className = 'minutes-picker-item';
         el.setAttribute('data-url', it.url || '');
         el.setAttribute('data-token', it.token || '');
         el.setAttribute('data-title', title);
-        var titleLine = '<div class="m-title">' + escMin(title) + '</div>';
-        var metaLine = '';
-        if (desc) {
-          metaLine = '<div class="m-desc">' + escMin(desc) + '</div>';
-        }
-        el.innerHTML = '<span class="m-icon">' + MIC_SVG + '</span><div class="m-body">' +
-                       titleLine + metaLine + '</div>';
+        // 左侧缩略图：飞书搜索 API 返回的 avatar 通常是封面图 URL；没有就回退到 mic SVG
+        var avatar = it.avatar || '';
+        var iconHtml = avatar
+          ? '<span class="m-thumb"><img src="' + escMin(avatar) + '" alt="" ' +
+            'onerror="this.parentNode.innerHTML=\'\'"></span>'
+          : '<span class="m-icon">' + MIC_SVG + '</span>';
+        // description 字段是搜索命中的关键词噪音（不展示）；只渲染标题
+        el.innerHTML = iconHtml +
+                       '<div class="m-body">' +
+                       '  <div class="m-title">' + escMin(title) + '</div>' +
+                       '</div>';
         minutesBody.appendChild(el);
       });
       // 分页"加载更多"
